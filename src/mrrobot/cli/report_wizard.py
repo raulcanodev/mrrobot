@@ -141,6 +141,13 @@ def run_wizard(target: str | None) -> None:
                 )
             )
             continue
+        except KeyboardInterrupt:
+            remaining = total - i + 1
+            console.print(
+                f"\n[warn]✗ Cancelled[/warn] — stopped {adapter.meta.name}, "
+                f"skipping the remaining {remaining} tool(s)."
+            )
+            break
 
         storage.save_run(result)
         if result.ok:
@@ -160,6 +167,10 @@ def run_wizard(target: str | None) -> None:
         )
 
     console.print()
+    if not report.sections:
+        console.print("[muted]Nothing to show — cancelled before any tool finished.[/muted]")
+        return
+
     _print_summary(report)
 
     if questionary.confirm(

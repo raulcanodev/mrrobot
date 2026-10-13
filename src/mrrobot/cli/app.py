@@ -157,7 +157,15 @@ def doctor(
 
 
 def main() -> None:
-    app()
+    try:
+        app()
+    except KeyboardInterrupt:
+        # Last-resort safety net: every tool run and install step already
+        # handles Ctrl+C on its own, but this guarantees a clean message
+        # instead of a raw traceback no matter where an interrupt slips
+        # through.
+        console.print("\n[muted]Cancelled.[/muted]")
+        raise SystemExit(130) from None
 
 
 if __name__ == "__main__":

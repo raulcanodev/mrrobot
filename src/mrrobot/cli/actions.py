@@ -169,6 +169,9 @@ def execute_tool(
         if adapter.meta.install_hint:
             err_console.print(f"[muted]Install with: {adapter.meta.install_hint}[/muted]")
         return
+    except KeyboardInterrupt:
+        console.print(f"\n[warn]✗ Cancelled[/warn] — stopped {adapter.meta.name}.")
+        return
 
     storage.save_run(result)
     if result.ok:
@@ -210,7 +213,11 @@ def install_one(name: str) -> bool:
     if not typer.confirm("Continue?", default=True):
         return False
 
-    proc = subprocess.run(cmd)
+    try:
+        proc = subprocess.run(cmd)
+    except KeyboardInterrupt:
+        console.print(f"\n[warn]✗ Cancelled[/warn] — stopped installing {meta.name}.")
+        return False
     if proc.returncode == 0:
         console.print(f"[ok]✓ '{meta.name}' installed successfully.[/ok]")
         return True
@@ -248,7 +255,13 @@ def install_all_missing() -> None:
             hint = adapter.meta.install_hint or "see the upstream repo"
             err_console.print(f"[warn]⚠ No package manager available. Manually: {hint}[/warn]")
             continue
-        proc = subprocess.run(cmd)
+        try:
+            proc = subprocess.run(cmd)
+        except KeyboardInterrupt:
+            console.print(
+                f"\n[warn]✗ Cancelled[/warn] — stopped before installing {adapter.meta.name}."
+            )
+            return
         if proc.returncode == 0:
             console.print(f"[ok]✓ {adapter.meta.name} installed.[/ok]")
         else:
