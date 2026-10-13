@@ -6,7 +6,7 @@ Upstream: https://github.com/sherlock-project/sherlock (MIT).
 
 from __future__ import annotations
 
-from ...core.models import Category, Mode, ToolMeta
+from ...core.models import Category, Mode, TargetKind, ToolMeta
 from ..base import ToolAdapter
 
 
@@ -15,11 +15,13 @@ class Sherlock(ToolAdapter):
         name="sherlock",
         category=Category.OSINT,
         mode=Mode.PASSIVE,
+        target_kind=TargetKind.USERNAME,
         summary="Busca un nombre de usuario en cientos de redes sociales públicas.",
         binary="sherlock",
         repo="sherlock-project/sherlock",
         version_cmd=["sherlock", "--version"],
-        install_hint="pipx install sherlock-project",
+        install_hint="brew install sherlock",
+        install_cmds=[["brew", "install", "sherlock"], ["pipx", "install", "sherlock-project"]],
         license="MIT",
     )
 

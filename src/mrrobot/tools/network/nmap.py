@@ -7,7 +7,7 @@ Upstream: https://github.com/nmap/nmap (NPSL).
 
 from __future__ import annotations
 
-from ...core.models import Category, Mode, ToolMeta
+from ...core.models import Category, Mode, TargetKind, ToolMeta
 from ..base import ToolAdapter
 
 
@@ -16,11 +16,13 @@ class Nmap(ToolAdapter):
         name="nmap",
         category=Category.NETWORK,
         mode=Mode.ACTIVE,
+        target_kind=TargetKind.HOST,
         summary="Descubre puertos y servicios abiertos en un host autorizado.",
         binary="nmap",
         repo="nmap/nmap",
         version_cmd=["nmap", "--version"],
         install_hint="brew install nmap",
+        install_cmds=[["brew", "install", "nmap"]],
         license="NPSL",
     )
 

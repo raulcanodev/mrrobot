@@ -8,6 +8,8 @@ exactamente lo mismo.
 
 from __future__ import annotations
 
+import subprocess
+
 import httpx
 import typer
 from rich.table import Table
@@ -16,10 +18,12 @@ from .. import __version__
 from ..core import registry, storage
 from ..core.config import SCOPE_FILE, load_scope, write_scope_template
 from ..core.console import console, err_console
+from ..core.installer import pick_install_cmd
 from ..core.models import Mode
-from ..core.runner import NotAuthorized, ToolNotInstalled
+from ..core.runner import NotAuthorized, ToolNotInstalled, which
 from ..core.updates import check_tool
 from .banner import render_banner
+from .report_wizard import run_wizard
 
 app = typer.Typer(
     add_completion=False,
@@ -95,7 +99,7 @@ def tools_list(
     """Lista las herramientas integradas y su estado."""
     if ctx.invoked_subcommand is not None:
         return
-    statuses = _check_all(online)
+    statuses = sorted(_check_all(online), key=lambda s: (s.meta.category.value, s.meta.name))
     table = Table(title="Herramientas integradas", title_style="brand", expand=True)
     table.add_column("Herramienta", style="bold")
     table.add_column("Categoría")
@@ -106,15 +110,16 @@ def tools_list(
 
     for s in statuses:
         mode_style = "active" if s.meta.mode is Mode.ACTIVE else "passive"
+        version = "integrado" if s.meta.builtin else (s.installed_version or "—")
         row = [
             s.meta.name,
             s.meta.category.value,
             f"[{mode_style}]{s.meta.mode.value}[/{mode_style}]",
             "[ok]sí[/ok]" if s.installed else "[err]no[/err]",
-            s.installed_version or "—",
+            version,
         ]
         if online:
-            latest = s.latest_version or "—"
+            latest = "—" if s.meta.builtin else (s.latest_version or "—")
             if s.update_available:
                 latest = f"[warn]{latest} ↑[/warn]"
             row.append(latest)
@@ -123,10 +128,52 @@ def tools_list(
     console.print(table)
     missing = [s for s in statuses if not s.installed]
     if missing:
-        console.print("\n[muted]Sugerencias de instalación:[/muted]")
+        console.print(
+            "\n[muted]Instálalas con 'mrrobot tools install <nombre>', o manualmente:[/muted]"
+        )
         for s in missing:
             hint = s.meta.install_hint or "ver repo upstream"
             console.print(f"  • {s.meta.name}: [muted]{hint}[/muted]")
+
+
+@tools_app.command("install")
+def tools_install(
+    name: str = typer.Argument(..., help="Nombre de la herramienta a instalar."),
+) -> None:
+    """Instala automáticamente una herramienta externa (pide confirmación)."""
+    adapter = registry.get(name)
+    if adapter is None:
+        err_console.print(f"[err]Herramienta desconocida:[/err] {name}")
+        err_console.print("[muted]Usa 'mrrobot tools' para ver las disponibles.[/muted]")
+        raise typer.Exit(code=2)
+
+    meta = adapter.meta
+    if meta.builtin:
+        console.print(f"[ok]'{meta.name}' es integrada en mrrobot; no requiere instalación.[/ok]")
+        return
+    if which(meta.binary):
+        console.print(f"[ok]✓ '{meta.name}' ya está instalada.[/ok]")
+        return
+
+    cmd = pick_install_cmd(meta)
+    if cmd is None:
+        err_console.print(
+            f"[err]No encuentro un gestor de paquetes disponible para instalar '{meta.name}'.[/err]"
+        )
+        if meta.install_hint:
+            console.print(f"[muted]Instálala manualmente con: {meta.install_hint}[/muted]")
+        raise typer.Exit(code=5)
+
+    console.print(f"Se ejecutará: [bold]{' '.join(cmd)}[/bold]")
+    if not typer.confirm("¿Continuar?", default=True):
+        raise typer.Exit(code=1)
+
+    proc = subprocess.run(cmd)
+    if proc.returncode == 0:
+        console.print(f"[ok]✓ '{meta.name}' instalada correctamente.[/ok]")
+    else:
+        err_console.print(f"[err]La instalación falló (código {proc.returncode}).[/err]")
+        raise typer.Exit(code=proc.returncode)
 
 
 @scope_app.command("init")
@@ -215,6 +262,15 @@ def history(limit: int = typer.Option(20, help="Número de ejecuciones a mostrar
         )
     console.print(table)
     console.print(f"[muted]Base de datos: {storage.db_location()}[/muted]")
+
+
+@app.command()
+def report(
+    target: str = typer.Argument(None, help="Dominio, usuario o IP. Si se omite, se pregunta."),
+) -> None:
+    """Asistente interactivo: elige herramientas y genera un informe completo."""
+    render_banner(__version__)
+    run_wizard(target)
 
 
 @app.command()

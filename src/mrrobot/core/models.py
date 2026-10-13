@@ -31,6 +31,20 @@ class Mode(enum.StrEnum):
     ACTIVE = "active"
 
 
+class TargetKind(enum.StrEnum):
+    """Qué tipo de objetivo espera una herramienta.
+
+    Se usa para filtrar qué herramientas tiene sentido ofrecer en el
+    asistente de informes según lo que el usuario está investigando.
+    HOST acepta tanto un dominio como una IP (p. ej. nmap o un handshake TLS).
+    """
+
+    USERNAME = "username"
+    DOMAIN = "domain"
+    IP = "ip"
+    HOST = "host"
+
+
 @dataclass(frozen=True)
 class ToolMeta:
     """Metadatos de una herramienta externa que orquestamos (no reimplementamos)."""
@@ -39,14 +53,23 @@ class ToolMeta:
     category: Category
     mode: Mode
     summary: str
-    # Binario que esperamos encontrar en el PATH.
-    binary: str
+    # Qué espera recibir como objetivo (dominio, usuario, IP u host genérico).
+    target_kind: TargetKind = TargetKind.DOMAIN
+    # Binario que esperamos encontrar en el PATH. Vacío si es "builtin".
+    binary: str = ""
+    # True si mrrobot implementa la lógica en Python (sin binario externo):
+    # siempre está "instalada" y no requiere configurar nada.
+    builtin: bool = False
     # Repositorio upstream, usado para comprobar actualizaciones.
     repo: str | None = None
     # Comando para leer la versión instalada, p.ej. ["nmap", "--version"].
     version_cmd: list[str] = field(default_factory=list)
-    # Pista de instalación que mostramos si la herramienta no está presente.
+    # Pista de instalación legible que mostramos si la herramienta no está.
     install_hint: str | None = None
+    # Comandos candidatos para instalarla automáticamente, en orden de
+    # preferencia. Cada uno es un argv; se usa el primero cuyo gestor de
+    # paquetes (primer token) esté en el PATH. P.ej. [["brew", "install", "nmap"]].
+    install_cmds: list[list[str]] = field(default_factory=list)
     # Licencia upstream (respetamos: ejecutamos, no redistribuimos su código).
     license: str | None = None
 

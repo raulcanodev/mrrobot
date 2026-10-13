@@ -6,7 +6,7 @@ enviar tráfico al objetivo. Upstream: https://github.com/projectdiscovery/subfi
 
 from __future__ import annotations
 
-from ...core.models import Category, Mode, ToolMeta
+from ...core.models import Category, Mode, TargetKind, ToolMeta
 from ..base import ToolAdapter
 
 
@@ -15,11 +15,13 @@ class Subfinder(ToolAdapter):
         name="subfinder",
         category=Category.WEB,
         mode=Mode.PASSIVE,
+        target_kind=TargetKind.DOMAIN,
         summary="Enumera subdominios de un dominio a partir de fuentes públicas.",
         binary="subfinder",
         repo="projectdiscovery/subfinder",
         version_cmd=["subfinder", "-version"],
-        install_hint="brew install subfinder  (o 'go install' desde el repo oficial)",
+        install_hint="brew install subfinder",
+        install_cmds=[["brew", "install", "subfinder"]],
         license="MIT",
     )
 

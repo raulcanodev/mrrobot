@@ -18,21 +18,23 @@ mañana, sin tocar el núcleo, puede tener una interfaz (TUI/web).
 
 ```
 src/mrrobot/
-├── cli/            # Capa fina de terminal (Typer + Rich)
-│   ├── app.py      #   comandos: run, tools, scope, history, doctor
+├── cli/                 # Capa fina de terminal (Typer + Rich)
+│   ├── app.py           #   comandos: run, report, tools, scope, history, doctor
+│   ├── report_wizard.py #   asistente interactivo de informes
 │   └── banner.py
-├── core/           # Núcleo reutilizable (independiente de la UI)
-│   ├── models.py   #   ToolMeta, RunResult, Scope, Mode…
-│   ├── config.py   #   scope / autorización
-│   ├── registry.py #   registro central de herramientas
-│   ├── runner.py   #   ejecución de procesos externos
-│   ├── updates.py  #   versión instalada vs. última release
-│   └── storage.py  #   historial en SQLite
-├── tools/          # Un adaptador por herramienta
-│   ├── osint/sherlock.py
-│   ├── web/subfinder.py
-│   └── network/nmap.py
-└── reports/
+├── core/                # Núcleo reutilizable (independiente de la UI)
+│   ├── models.py        #   ToolMeta, RunResult, Scope, Mode, TargetKind…
+│   ├── config.py        #   scope / autorización
+│   ├── registry.py      #   registro central de herramientas
+│   ├── runner.py        #   ejecución de procesos externos
+│   ├── installer.py     #   instalación automática (brew/pipx)
+│   ├── updates.py       #   versión instalada vs. última release
+│   ├── report.py        #   agregación de resultados en un informe
+│   └── storage.py       #   historial en SQLite
+└── tools/               # Un adaptador por herramienta
+    ├── osint/            # sherlock, theharvester, whois
+    ├── web/               # subfinder, amass, crtsh, wayback
+    └── network/           # nmap, internetdb, certinfo
 ```
 
 **Modos de ejecución**
@@ -41,6 +43,24 @@ src/mrrobot/
 |------|----------|--------------|
 | `passive` | Consulta fuentes públicas, no toca el objetivo | Permitido por defecto |
 | `active`  | Envía tráfico al objetivo | Requiere scope autorizado |
+
+**Herramientas integradas** (10 ahora mismo, sin contar lo que tú añadas):
+
+| Herramienta | Categoría | Modo | Instalación |
+|---|---|---|---|
+| `sherlock` | osint | passive | externa (brew/pipx) — usuario en redes sociales |
+| `theharvester` | osint | passive | externa (brew) — emails/hosts vía fuentes OSINT |
+| `whois` | osint | passive | **integrada** — registrante, fechas, DNS autoritativo |
+| `subfinder` | web | passive | externa (brew) — subdominios |
+| `amass` | web | passive | externa (brew), siempre en `-passive` |
+| `crtsh` | web | passive | **integrada** — subdominios vía Certificate Transparency |
+| `wayback` | web | passive | **integrada** — URLs históricas (Internet Archive) |
+| `nmap` | network | active | externa (brew) — puertos y servicios |
+| `internetdb` | network | passive | **integrada** — snapshot de Shodan (sin API key) |
+| `certinfo` | network | active | **integrada** — certificado TLS, SANs, cifrado |
+
+Las "integradas" no requieren instalar nada: están escritas en Python dentro
+de mrrobot y funcionan desde el primer `mrrobot doctor`.
 
 ## Instalación
 
@@ -77,11 +97,10 @@ python3 -m venv .venv && source .venv/bin/activate
 pip install -e ".[dev]"
 ```
 
-Las herramientas externas que orquesta se instalan aparte (mrrobot te dice cómo):
+Las herramientas externas se instalan aparte, con un solo comando cada una:
 
 ```bash
-pipx install sherlock-project      # OSINT de usuarios
-brew install subfinder nmap        # subdominios / red
+mrrobot tools install sherlock     # te muestra el comando (brew/pipx) y pide confirmación
 ```
 
 ## Uso
@@ -89,20 +108,48 @@ brew install subfinder nmap        # subdominios / red
 ```bash
 mrrobot doctor                     # chequeo + avisos de actualización
 mrrobot tools --online             # herramientas integradas y versiones
+mrrobot tools install <nombre>     # instala una herramienta externa automáticamente
 mrrobot scope init                 # crea tu plantilla de alcance
-mrrobot run sherlock raulcanodev   # OSINT pasivo
+mrrobot run sherlock raulcanodev   # OSINT pasivo, una sola herramienta
 mrrobot run subfinder ejemplo.com  # subdominios (pasivo)
 mrrobot run nmap 192.168.1.10      # red (activo → exige scope)
+mrrobot report                     # asistente interactivo: informe completo
 mrrobot history                    # ejecuciones anteriores
 ```
 
+### Informes completos (`mrrobot report`)
+
+```
+mrrobot report ejemplo.com
+```
+
+Te pregunta si quieres generar el informe, confirma el tipo de objetivo
+(dominio/usuario/IP), te muestra qué herramientas aplican y cuáles ya tienes
+instaladas, te deja elegir cuáles ejecutar (o `all`), y al terminar:
+
+- imprime un resumen en consola (cada herramienta en su panel, con las
+  primeras líneas de salida);
+- te pregunta si quieres guardar el **informe completo** en un `.txt` bajo
+  `~/.local/share/mrrobot/reports/`;
+- registra cada ejecución en el historial (`mrrobot history`).
+
+Las herramientas ACTIVAS fuera de tu scope autorizado no se bloquean con un
+error: simplemente quedan marcadas como "bloqueada" dentro del informe.
+
 ## Añadir una herramienta
 
+**Externa** (lanza un binario):
 1. Crea `tools/<categoria>/<nombre>.py` heredando de `ToolAdapter`.
-2. Declara su `ToolMeta` (binario, repo, modo, versión, pista de instalación).
-3. Regístralo en `core/registry.py`.
+2. Declara su `ToolMeta` (binario, repo, modo, `target_kind`, `install_cmds`).
+3. Sobrescribe `build_args()`.
 
-El resto (autorización, ejecución, historial, avisos de update) ya es común.
+**Integrada** (sin binario, p. ej. una API pública):
+1. Mismo `ToolMeta`, con `builtin=True` y sin `binary`.
+2. Sobrescribe `execute()` directamente y construye el resultado con
+   `make_result()` (ver `tools/web/crtsh.py` como ejemplo corto).
+
+En ambos casos, regístrala en `core/registry.py`. El resto (autorización,
+historial, informes, avisos de update) ya es común.
 
 ## Notas de licencias
 

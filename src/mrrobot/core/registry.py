@@ -8,16 +8,33 @@ cualquier futura interfaz consultan solo este registro.
 from __future__ import annotations
 
 from ..tools.base import ToolAdapter
+from ..tools.network.certinfo import CertInfo
+from ..tools.network.internetdb import InternetDB
 from ..tools.network.nmap import Nmap
 from ..tools.osint.sherlock import Sherlock
+from ..tools.osint.theharvester import TheHarvester
+from ..tools.osint.whois_lookup import Whois
+from ..tools.web.amass import Amass
+from ..tools.web.crtsh import CrtSh
 from ..tools.web.subfinder import Subfinder
+from ..tools.web.wayback import Wayback
 from .models import Category
 
 # Instancias de los adaptadores integrados.
 _ADAPTERS: list[ToolAdapter] = [
+    # OSINT
     Sherlock(),
+    TheHarvester(),
+    Whois(),
+    # Web / dominios
     Subfinder(),
+    Amass(),
+    CrtSh(),
+    Wayback(),
+    # Red
     Nmap(),
+    InternetDB(),
+    CertInfo(),
 ]
 
 _BY_NAME: dict[str, ToolAdapter] = {a.meta.name: a for a in _ADAPTERS}

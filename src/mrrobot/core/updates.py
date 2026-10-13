@@ -71,6 +71,11 @@ def latest_github_release(repo: str, *, client: httpx.Client | None = None) -> s
 
 def check_tool(meta: ToolMeta, *, online: bool, client: httpx.Client | None = None) -> ToolStatus:
     """Construye el estado de una herramienta (instalada, versión, update)."""
+    if meta.builtin:
+        # Implementada en Python dentro de mrrobot: siempre disponible,
+        # su "versión" es la del propio paquete.
+        return ToolStatus(meta=meta, installed=True, path="(integrado en mrrobot)")
+
     path = which(meta.binary)
     status = ToolStatus(meta=meta, installed=path is not None, path=path)
     if not status.installed:
