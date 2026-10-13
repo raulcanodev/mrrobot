@@ -1,0 +1,26 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.eggs/
+build/
+dist/
+.venv/
+venv/
+.env
+
+# Herramientas
+.mypy_cache/
+.ruff_cache/
+.pytest_cache/
+
+# Datos locales de mrrobot (resultados, diccionarios, informes)
+# NUNCA subir resultados de investigaciones a repos públicos.
+*.db
+/reports/*.json
+/reports/*.html
+/data/
+scope.toml
+
+# OS
+.DS_Store
