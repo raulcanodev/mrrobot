@@ -9,6 +9,7 @@ sources) is allowed by default, but it is still logged.
 from __future__ import annotations
 
 import ipaddress
+import os
 import tomllib
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -20,6 +21,16 @@ APP_NAME = "mrrobot"
 CONFIG_DIR = Path(user_config_dir(APP_NAME))
 DATA_DIR = Path(user_data_dir(APP_NAME))
 SCOPE_FILE = CONFIG_DIR / "scope.toml"
+
+# Where mrrobot itself comes from — mirrors install.sh's own env vars, so a
+# fork that sets MRROBOT_REPOSITORY/MRROBOT_BRANCH gets self-update checks
+# against its own repo instead of upstream.
+SELF_REPO = os.environ.get("MRROBOT_REPOSITORY", "raulcanodev/mrrobot")
+SELF_BRANCH = os.environ.get("MRROBOT_BRANCH", "main")
+# Written by install.sh at install time with the commit SHA it fetched.
+# Missing on a dev/editable install — that's the signal to skip self-update
+# checks entirely rather than nag someone hacking on the repo itself.
+SELF_COMMIT_FILE = DATA_DIR / "installed_commit.txt"
 
 
 @dataclass

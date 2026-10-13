@@ -54,6 +54,7 @@ def main_menu() -> None:
         "[muted]↑/↓ to move, Enter to choose. "
         "You can also use direct commands: 'mrrobot --help'.[/muted]\n"
     )
+    _maybe_offer_self_update()
 
     try:
         while True:
@@ -136,3 +137,23 @@ def _scope_flow() -> None:
         path = write_scope_template()
         console.print(f"[ok]✓[/ok] Template at: [bold]{path}[/bold]")
         console.print("[muted]Edit it by hand and set authorized = true.[/muted]")
+
+
+def _maybe_offer_self_update() -> None:
+    """Best-effort, quiet-on-failure check for a newer mrrobot on startup."""
+    try:
+        available, current, latest = actions.get_self_update_status(timeout=2.5)
+    except Exception:
+        # Never let a flaky network keep the menu from opening.
+        return
+    if not available or not current or not latest:
+        return
+
+    console.print(
+        f"[warn]↑ A new version of mrrobot is available[/warn] "
+        f"({current[:7]} → {latest[:7]}).\n"
+    )
+    if questionary.confirm("Update now?", default=True, style=_STYLE).ask():
+        actions.self_update()
+        raise SystemExit(0)
+    console.print()

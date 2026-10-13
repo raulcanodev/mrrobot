@@ -117,7 +117,9 @@ mrrobot
 Run with nothing else, it opens an **arrow-key selector menu** (↑/↓ + Enter,
 no typing commands): run a tool, generate a report, check tool status,
 install the missing ones, manage scope, or view history. `mrrobot menu`
-does the same thing explicitly.
+does the same thing explicitly. On startup it also does a quick,
+best-effort check against GitHub for a newer mrrobot — if one's found,
+it asks whether to update right there (see **Self-update** below).
 
 This **doesn't replace** the command-line path: everything in the menu
 also has its own direct command, for scripts, automation, or whenever you
@@ -136,7 +138,21 @@ mrrobot run subfinder example.com  # subdomains (passive)
 mrrobot run nmap 192.168.1.10      # network (active → requires scope)
 mrrobot report                     # interactive wizard: full report
 mrrobot history                    # previous runs
+mrrobot update                     # check GitHub and update mrrobot itself
 ```
+
+### Self-update
+
+Installs made via `curl | install.sh` record the commit they were built
+from. From then on, the menu (on startup) and `mrrobot doctor` do a quick,
+best-effort check against GitHub's API for a newer commit on `main`, and
+`mrrobot update` does the same on demand. If one's found, confirming
+re-runs the official installer in place — the exact same command from
+**Install** above — then asks you to restart mrrobot.
+
+A dev/editable install (`pip install -e .`) has nothing to compare
+against and stays silent about this on purpose, since you're the one
+changing the code.
 
 ### Full reports (`mrrobot report`)
 

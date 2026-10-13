@@ -17,12 +17,12 @@ from rich.progress import Progress, SpinnerColumn, TextColumn, TimeElapsedColumn
 from rich.table import Table
 
 from ..core import registry, storage
-from ..core.config import Scope
+from ..core.config import SELF_BRANCH, SELF_REPO, Scope
 from ..core.console import console, err_console
 from ..core.installer import pick_install_cmd
 from ..core.models import Mode, ToolStatus
 from ..core.runner import NotAuthorized, ToolNotInstalled, which
-from ..core.updates import check_tool
+from ..core.updates import check_self_update, check_tool
 from ..tools.base import ToolAdapter
 
 T = TypeVar("T")
@@ -59,7 +59,15 @@ def check_all(online: bool) -> list[ToolStatus]:
 
 
 def print_startup_notices(online: bool) -> None:
-    """On startup: warn about missing tools or available updates."""
+    """On startup: warn about missing tools, tool updates, or an mrrobot update."""
+    if online:
+        self_available, self_current, self_latest = get_self_update_status()
+        if self_available and self_current and self_latest:
+            console.print(
+                f"[warn]↑ A new version of mrrobot is available[/warn] "
+                f"({self_current[:7]} → {self_latest[:7]}). Run 'mrrobot update'."
+            )
+
     statuses = check_all(online)
     missing = [s for s in statuses if not s.installed]
     updates = [s for s in statuses if s.update_available]
@@ -268,3 +276,23 @@ def install_all_missing() -> None:
             err_console.print(
                 f"[err]✗ {adapter.meta.name} failed (exit code {proc.returncode}).[/err]"
             )
+
+
+def get_self_update_status(timeout: float = 6.0) -> tuple[bool, str | None, str | None]:
+    """Is a newer mrrobot available? See core.updates.check_self_update."""
+    return check_self_update(timeout=timeout)
+
+
+def self_update() -> None:
+    """Re-run the official installer to update mrrobot in place."""
+    url = f"https://raw.githubusercontent.com/{SELF_REPO}/{SELF_BRANCH}/install.sh"
+    console.print(f"\nRunning the installer: [bold]curl -fsSL {url} | bash[/bold]\n")
+    try:
+        proc = subprocess.run(["bash", "-c", f"curl -fsSL '{url}' | bash"])
+    except KeyboardInterrupt:
+        console.print("\n[warn]✗ Cancelled[/warn] — update not completed.")
+        return
+    if proc.returncode == 0:
+        console.print("\n[ok]✓ Updated.[/ok] Restart mrrobot to use the new version.")
+    else:
+        err_console.print(f"\n[err]Update failed (exit code {proc.returncode}).[/err]")

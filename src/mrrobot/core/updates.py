@@ -13,6 +13,7 @@ import subprocess
 import httpx
 from packaging.version import InvalidVersion, Version
 
+from .config import SELF_BRANCH, SELF_COMMIT_FILE, SELF_REPO
 from .models import ToolMeta, ToolStatus
 from .runner import which
 
@@ -67,6 +68,56 @@ def latest_github_release(repo: str, *, client: httpx.Client | None = None) -> s
     finally:
         if owns_client:
             client.close()
+
+
+def installed_commit() -> str | None:
+    """Commit SHA install.sh recorded at install time, if any."""
+    if not SELF_COMMIT_FILE.exists():
+        return None
+    sha = SELF_COMMIT_FILE.read_text(encoding="utf-8").strip()
+    return sha or None
+
+
+def latest_commit(repo: str, branch: str, *, client: httpx.Client | None = None) -> str | None:
+    """Latest commit SHA for 'repo' at 'branch'. None on failure."""
+    url = f"https://api.github.com/repos/{repo}/commits/{branch}"
+    owns_client = client is None
+    client = client or httpx.Client(timeout=6.0)
+    try:
+        resp = client.get(url, headers={"Accept": "application/vnd.github+json"})
+        if resp.status_code != 200:
+            return None
+        return resp.json().get("sha")
+    except (httpx.HTTPError, ValueError):
+        return None
+    finally:
+        if owns_client:
+            client.close()
+
+
+def check_self_update(
+    *, timeout: float = 6.0, client: httpx.Client | None = None
+) -> tuple[bool, str | None, str | None]:
+    """Is a newer mrrobot available? Returns (available, current_sha, latest_sha).
+
+    Only ever reports an update for installs made via install.sh, which is
+    the only place that records the installed commit — a dev/editable
+    checkout has nothing to compare against and this silently reports
+    nothing available, on purpose.
+    """
+    current = installed_commit()
+    if current is None:
+        return False, None, None
+    owns_client = client is None
+    client = client or httpx.Client(timeout=timeout)
+    try:
+        latest = latest_commit(SELF_REPO, SELF_BRANCH, client=client)
+    finally:
+        if owns_client:
+            client.close()
+    if latest is None:
+        return False, current, None
+    return latest != current, current, latest
 
 
 def check_tool(meta: ToolMeta, *, online: bool, client: httpx.Client | None = None) -> ToolStatus:

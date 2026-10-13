@@ -156,6 +156,26 @@ def doctor(
     actions.print_startup_notices(online)
 
 
+@app.command()
+def update() -> None:
+    """Check GitHub for a newer mrrobot and update if one's available."""
+    console.print("Checking for a newer mrrobot…")
+    available, current, latest = actions.get_self_update_status()
+    if current is None:
+        console.print(
+            "[muted]This install doesn't track updates "
+            "(a dev/editable checkout, most likely).[/muted]"
+        )
+        return
+    if not available:
+        console.print(f"[ok]✓ You're already on the latest version[/ok] ({current[:7]}).")
+        return
+
+    console.print(f"[warn]↑ Update available[/warn] ({current[:7]} → {(latest or '?')[:7]}).")
+    if typer.confirm("Update now?", default=True):
+        actions.self_update()
+
+
 def main() -> None:
     try:
         app()

@@ -70,6 +70,30 @@ ln -sf "$VENV_DIR/bin/mrrobot" "$BIN_DIR/mrrobot"
 
 printf '  ✓ Installed at %s\n' "$BIN_DIR/mrrobot"
 
+# Record which commit we just installed, so mrrobot can later check GitHub
+# for a newer one and offer to self-update. Best-effort: a dev checkout, an
+# offline install, or a rate-limited API call just means that check stays
+# quiet later — it never fails the install itself.
+RESOLVED_SHA=$(
+  "$VENV_DIR/bin/python" - "https://api.github.com/repos/${REPOSITORY}/commits/${BRANCH}" <<'PYEOF' 2>/dev/null || true
+import json
+import sys
+import urllib.request
+
+try:
+    req = urllib.request.Request(sys.argv[1], headers={"Accept": "application/vnd.github+json"})
+    with urllib.request.urlopen(req, timeout=8) as resp:
+        print(json.load(resp)["sha"])
+except Exception:
+    pass
+PYEOF
+)
+if [[ -n "$RESOLVED_SHA" ]]; then
+  SELF_DATA_DIR=$("$VENV_DIR/bin/python" -c "from platformdirs import user_data_dir; print(user_data_dir('mrrobot'))")
+  mkdir -p "$SELF_DATA_DIR"
+  printf '%s\n' "$RESOLVED_SHA" > "$SELF_DATA_DIR/installed_commit.txt"
+fi
+
 # Tell the user when their shell cannot find the new command yet.
 case ":$PATH:" in
   *":$BIN_DIR:"*) ;;
