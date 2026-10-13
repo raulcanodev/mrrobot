@@ -1,8 +1,8 @@
-"""Adaptador de theHarvester: emails, hosts y empleados vía fuentes públicas.
+"""theHarvester adapter: emails, hosts and employees via public sources.
 
-Agrega motores de búsqueda, certificados y otras fuentes OSINT para un
-dominio. PASIVO: las fuentes que usamos por defecto (-b all) no envían
-tráfico directo al objetivo, consultan terceros sobre él.
+Aggregates search engines, certificates and other OSINT sources for a
+domain. PASSIVE: the default sources (-b all) don't send traffic directly
+to the target, they query third parties about it.
 Upstream: https://github.com/laramies/theHarvester (GPL-3.0).
 """
 
@@ -18,7 +18,7 @@ class TheHarvester(ToolAdapter):
         category=Category.OSINT,
         mode=Mode.PASSIVE,
         target_kind=TargetKind.DOMAIN,
-        summary="Emails, subdominios y empleados de una organización vía fuentes OSINT públicas.",
+        summary="Emails, subdomains and employees of an organization via public OSINT sources.",
         binary="theHarvester",
         repo="laramies/theHarvester",
         version_cmd=["theHarvester", "--version"],

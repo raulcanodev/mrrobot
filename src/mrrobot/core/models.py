@@ -1,7 +1,7 @@
-"""Modelos de datos compartidos por todo el proyecto.
+"""Data models shared across the whole project.
 
-El core no sabe nada de la CLI ni de una futura interfaz: solo define
-estructuras limpias que cualquier capa (terminal, TUI, API) puede reutilizar.
+The core knows nothing about the CLI or any future interface: it just
+defines clean structures that any layer (terminal, TUI, API) can reuse.
 """
 
 from __future__ import annotations
@@ -12,7 +12,7 @@ from dataclasses import dataclass, field
 
 
 class Category(enum.StrEnum):
-    """Categorías de los módulos, al estilo de un menú clásico de recon."""
+    """Module categories, in the style of a classic recon-tool menu."""
 
     OSINT = "osint"
     NETWORK = "network"
@@ -21,10 +21,10 @@ class Category(enum.StrEnum):
 
 
 class Mode(enum.StrEnum):
-    """Perfil de ejecución de una herramienta.
+    """A tool's execution profile.
 
-    PASSIVE  -> solo consulta fuentes públicas, no toca el objetivo.
-    ACTIVE   -> envía tráfico al objetivo; exige autorización/scope explícito.
+    PASSIVE  -> only queries public sources, never touches the target.
+    ACTIVE   -> sends traffic to the target; requires explicit scope authorization.
     """
 
     PASSIVE = "passive"
@@ -32,11 +32,11 @@ class Mode(enum.StrEnum):
 
 
 class TargetKind(enum.StrEnum):
-    """Qué tipo de objetivo espera una herramienta.
+    """What kind of target a tool expects.
 
-    Se usa para filtrar qué herramientas tiene sentido ofrecer en el
-    asistente de informes según lo que el usuario está investigando.
-    HOST acepta tanto un dominio como una IP (p. ej. nmap o un handshake TLS).
+    Used to filter which tools make sense to offer in the report wizard
+    based on what the user is investigating. HOST accepts either a domain
+    or an IP (e.g. nmap or a TLS handshake).
     """
 
     USERNAME = "username"
@@ -47,36 +47,36 @@ class TargetKind(enum.StrEnum):
 
 @dataclass(frozen=True)
 class ToolMeta:
-    """Metadatos de una herramienta externa que orquestamos (no reimplementamos)."""
+    """Metadata for an external tool we orchestrate (never reimplement)."""
 
     name: str
     category: Category
     mode: Mode
     summary: str
-    # Qué espera recibir como objetivo (dominio, usuario, IP u host genérico).
+    # What it expects as a target (domain, username, IP, or generic host).
     target_kind: TargetKind = TargetKind.DOMAIN
-    # Binario que esperamos encontrar en el PATH. Vacío si es "builtin".
+    # Binary we expect to find on the PATH. Empty if "builtin".
     binary: str = ""
-    # True si mrrobot implementa la lógica en Python (sin binario externo):
-    # siempre está "instalada" y no requiere configurar nada.
+    # True if mrrobot implements the logic in Python (no external binary):
+    # always "installed" and needs no setup.
     builtin: bool = False
-    # Repositorio upstream, usado para comprobar actualizaciones.
+    # Upstream repo, used to check for updates.
     repo: str | None = None
-    # Comando para leer la versión instalada, p.ej. ["nmap", "--version"].
+    # Command to read the installed version, e.g. ["nmap", "--version"].
     version_cmd: list[str] = field(default_factory=list)
-    # Pista de instalación legible que mostramos si la herramienta no está.
+    # Human-readable install hint shown when the tool isn't present.
     install_hint: str | None = None
-    # Comandos candidatos para instalarla automáticamente, en orden de
-    # preferencia. Cada uno es un argv; se usa el primero cuyo gestor de
-    # paquetes (primer token) esté en el PATH. P.ej. [["brew", "install", "nmap"]].
+    # Candidate install commands, in order of preference. Each is an argv;
+    # the first one whose package manager (first token) is on the PATH is
+    # used. E.g. [["brew", "install", "nmap"]].
     install_cmds: list[list[str]] = field(default_factory=list)
-    # Licencia upstream (respetamos: ejecutamos, no redistribuimos su código).
+    # Upstream license (we respect it: we run the tool, never redistribute its code).
     license: str | None = None
 
 
 @dataclass
 class ToolStatus:
-    """Estado detectado de una herramienta en la máquina del usuario."""
+    """Detected state of a tool on the user's machine."""
 
     meta: ToolMeta
     installed: bool
@@ -88,14 +88,14 @@ class ToolStatus:
     def update_available(self) -> bool:
         if not (self.installed_version and self.latest_version):
             return False
-        from .updates import is_newer  # import local para evitar ciclos
+        from .updates import is_newer  # local import to avoid a cycle
 
         return is_newer(self.latest_version, self.installed_version)
 
 
 @dataclass
 class RunResult:
-    """Resultado normalizado de ejecutar una herramienta."""
+    """Normalized result of running a tool."""
 
     tool: str
     target: str

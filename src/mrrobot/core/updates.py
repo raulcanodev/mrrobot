@@ -1,8 +1,8 @@
-"""Comprobación de versiones y actualizaciones de las herramientas.
+"""Version and update checks for the tools.
 
-Al arrancar, mrrobot puede avisar de qué herramientas integradas tienen una
-versión más reciente upstream. La comprobación de red es best-effort y con
-timeout corto: nunca debe bloquear el arranque.
+On startup, mrrobot can warn which built-in tools have a newer upstream
+version. The network check is best-effort with a short timeout: it must
+never block startup.
 """
 
 from __future__ import annotations
@@ -25,7 +25,7 @@ def _parse_version(text: str) -> str | None:
 
 
 def is_newer(candidate: str, current: str) -> bool:
-    """¿'candidate' es una versión más nueva que 'current'?"""
+    """Is 'candidate' a newer version than 'current'?"""
     try:
         return Version(candidate) > Version(current)
     except InvalidVersion:
@@ -52,7 +52,7 @@ def installed_version(meta: ToolMeta) -> str | None:
 
 
 def latest_github_release(repo: str, *, client: httpx.Client | None = None) -> str | None:
-    """Última release publicada en GitHub para 'owner/name'. None si falla."""
+    """Latest published GitHub release for 'owner/name'. None on failure."""
     url = f"https://api.github.com/repos/{repo}/releases/latest"
     owns_client = client is None
     client = client or httpx.Client(timeout=6.0)
@@ -70,11 +70,11 @@ def latest_github_release(repo: str, *, client: httpx.Client | None = None) -> s
 
 
 def check_tool(meta: ToolMeta, *, online: bool, client: httpx.Client | None = None) -> ToolStatus:
-    """Construye el estado de una herramienta (instalada, versión, update)."""
+    """Build a tool's status (installed, version, update)."""
     if meta.builtin:
-        # Implementada en Python dentro de mrrobot: siempre disponible,
-        # su "versión" es la del propio paquete.
-        return ToolStatus(meta=meta, installed=True, path="(integrado en mrrobot)")
+        # Implemented in Python inside mrrobot: always available, its
+        # "version" is the package's own version.
+        return ToolStatus(meta=meta, installed=True, path="(built into mrrobot)")
 
     path = which(meta.binary)
     status = ToolStatus(meta=meta, installed=path is not None, path=path)

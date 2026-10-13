@@ -1,8 +1,8 @@
-"""Estilo visual compartido para los selectores interactivos (questionary).
+"""Shared visual style for the interactive selectors (questionary).
 
-En un módulo propio para que el menú principal y el asistente de informes
-puedan importarlo sin crear un ciclo entre ellos (el menú abre el asistente,
-así que el asistente no puede depender del módulo del menú).
+Kept in its own module so the main menu and the report wizard can both
+import it without creating a cycle between them (the menu opens the
+wizard, so the wizard can't depend on the menu's module).
 """
 
 from __future__ import annotations

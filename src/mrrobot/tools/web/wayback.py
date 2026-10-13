@@ -1,10 +1,10 @@
-"""Wayback Machine: URLs históricas indexadas de un dominio.
+"""Wayback Machine: historical URLs indexed for a domain.
 
-Integrado, sin binario externo. Equivalente al clásico `waybackurls`, pero
-contra la API CDX de archive.org directamente. PASIVO: consulta el archivo
-de Internet Archive, no el objetivo. Útil para encontrar rutas, parámetros,
-endpoints o subdominios olvidados que siguen indexados aunque ya no estén
-enlazados desde la web actual.
+Built in, no external binary. Equivalent to the classic `waybackurls`, but
+hitting archive.org's CDX API directly. PASSIVE: queries the Internet
+Archive, not the target. Useful for finding forgotten routes, parameters,
+endpoints or subdomains that are still indexed even if no longer linked
+from the current web.
 """
 
 from __future__ import annotations
@@ -25,7 +25,7 @@ class Wayback(ToolAdapter):
         category=Category.WEB,
         mode=Mode.PASSIVE,
         target_kind=TargetKind.DOMAIN,
-        summary="URLs históricas de un dominio indexadas por Internet Archive.",
+        summary="Historical URLs for a domain indexed by the Internet Archive.",
         builtin=True,
     )
 
@@ -37,8 +37,8 @@ class Wayback(ToolAdapter):
             "output": "json",
             "fl": "original",
             "collapse": "urlkey",
-            # La API CDX es notoriamente lenta en dominios muy indexados;
-            # un límite moderado por defecto evita esperas eternas.
+            # The CDX API is notoriously slow on heavily-indexed domains;
+            # a moderate default limit avoids endless waits.
             "limit": str(limit) if limit else "1000",
         }
         try:
@@ -48,13 +48,13 @@ class Wayback(ToolAdapter):
         except (httpx.HTTPError, ValueError) as exc:
             return make_result(
                 self.meta, target, returncode=1, stdout="",
-                stderr=f"No se pudo consultar Wayback Machine: {exc}",
+                stderr=f"Couldn't query the Wayback Machine: {exc}",
                 started_at=start, command=[_CDX_URL, f"url={params['url']}"],
             )
 
-        # La primera fila es la cabecera ("original"); el resto son URLs.
+        # The first row is the header ("original"); the rest are URLs.
         urls = sorted({row[0] for row in rows[1:] if row})
-        stdout = "\n".join(urls) if urls else "(sin URLs históricas indexadas)"
+        stdout = "\n".join(urls) if urls else "(no historical URLs indexed)"
         return make_result(
             self.meta, target, returncode=0, stdout=stdout, stderr="",
             started_at=start, command=[_CDX_URL, f"url={params['url']}"],

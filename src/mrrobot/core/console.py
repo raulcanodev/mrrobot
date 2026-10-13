@@ -1,7 +1,7 @@
-"""Consola Rich compartida.
+"""Shared Rich console.
 
-Centralizar la consola aquí hace que todo el programa tenga un estilo
-coherente y que una futura interfaz pueda sustituir solo este módulo.
+Centralizing the console here keeps the whole program visually consistent,
+and lets a future interface swap out just this module.
 """
 
 from __future__ import annotations

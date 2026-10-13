@@ -1,8 +1,8 @@
-"""Ejecución de herramientas externas.
+"""Execution of external tools.
 
-Orquestamos procesos existentes en lugar de reimplementar su lógica. El
-runner es síncrono y sencillo, pero está aislado para poder añadir después
-ejecución asíncrona o concurrente sin tocar el resto del core.
+We orchestrate existing processes instead of reimplementing their logic.
+The runner is synchronous and simple, but kept isolated so async or
+concurrent execution can be added later without touching the rest of core.
 """
 
 from __future__ import annotations
@@ -19,7 +19,7 @@ class ToolNotInstalled(RuntimeError):
 
 
 class NotAuthorized(PermissionError):
-    """Se intentó una acción ACTIVA contra un objetivo fuera del alcance."""
+    """An ACTIVE action was attempted against a target outside of scope."""
 
 
 def which(binary: str) -> str | None:
@@ -33,10 +33,10 @@ def run_tool(
     *,
     timeout: int = 300,
 ) -> RunResult:
-    """Lanza la herramienta y devuelve un resultado normalizado.
+    """Launch the tool and return a normalized result.
 
-    La comprobación de autorización se hace una capa más arriba (en el
-    adaptador), de modo que el runner solo se ocupa de ejecutar.
+    The authorization check happens one layer up (in the adapter), so the
+    runner only ever has to worry about execution.
     """
     binary = which(meta.binary)
     if binary is None:
@@ -55,7 +55,7 @@ def run_tool(
         stdout, stderr, code = proc.stdout, proc.stderr, proc.returncode
     except subprocess.TimeoutExpired as exc:
         stdout = exc.stdout or ""
-        stderr = (exc.stderr or "") + f"\n[mrrobot] tiempo agotado tras {timeout}s"
+        stderr = (exc.stderr or "") + f"\n[mrrobot] timed out after {timeout}s"
         code = 124
 
     return RunResult(

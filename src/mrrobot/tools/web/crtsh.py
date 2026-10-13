@@ -1,9 +1,9 @@
-"""crt.sh: descubrimiento de subdominios vía transparencia de certificados.
+"""crt.sh: subdomain discovery via certificate transparency.
 
-Integrado (sin binario externo): consulta la API pública de crt.sh, que
-indexa los registros de Certificate Transparency. PASIVO: no toca el
-objetivo, solo interroga una base de datos de terceros sobre certificados
-ya emitidos públicamente. Complementa a subfinder con una fuente distinta.
+Built in (no external binary): queries crt.sh's public API, which indexes
+Certificate Transparency logs. PASSIVE: never touches the target, only
+queries a third-party database about certificates already issued
+publicly. Complements subfinder with a different source.
 """
 
 from __future__ import annotations
@@ -22,7 +22,7 @@ class CrtSh(ToolAdapter):
         category=Category.WEB,
         mode=Mode.PASSIVE,
         target_kind=TargetKind.DOMAIN,
-        summary="Subdominios a partir de certificados TLS emitidos (Certificate Transparency).",
+        summary="Subdomains from issued TLS certificates (Certificate Transparency).",
         builtin=True,
     )
 
@@ -37,7 +37,7 @@ class CrtSh(ToolAdapter):
         except (httpx.HTTPError, ValueError) as exc:
             return make_result(
                 self.meta, target, returncode=1, stdout="",
-                stderr=f"No se pudo consultar crt.sh: {exc}", started_at=start,
+                stderr=f"Couldn't query crt.sh: {exc}", started_at=start,
                 command=[url, f"q={params['q']}"],
             )
 
@@ -48,7 +48,7 @@ class CrtSh(ToolAdapter):
                 if name:
                     names.add(name)
 
-        stdout = "\n".join(sorted(names)) if names else "(sin resultados en crt.sh)"
+        stdout = "\n".join(sorted(names)) if names else "(no results on crt.sh)"
         return make_result(
             self.meta, target, returncode=0, stdout=stdout, stderr="",
             started_at=start, command=[url, f"q={params['q']}"],

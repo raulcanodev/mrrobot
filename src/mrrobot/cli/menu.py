@@ -1,8 +1,8 @@
-"""Menú interactivo: navegación con flechas, sin perder la vía manual.
+"""Interactive menu: arrow-key navigation, without losing the manual path.
 
-Se abre al ejecutar 'mrrobot' sin argumentos (o con 'mrrobot menu'). Cada
-opción de aquí tiene también su comando directo documentado en 'mrrobot
---help' — el menú solo es una forma más cómoda de llegar a lo mismo.
+Opens when running 'mrrobot' with no arguments (or 'mrrobot menu'). Every
+option here also has its own direct command documented in 'mrrobot
+--help' — the menu is just a more convenient way to reach the same thing.
 """
 
 from __future__ import annotations
@@ -21,65 +21,65 @@ from .banner import render_banner
 from .report_wizard import run_wizard
 from .style import QUESTIONARY_STYLE as _STYLE
 
-_VOLVER = "‹ Volver"
+_BACK = "‹ Back"
 
 _TARGET_HINTS = {
-    TargetKind.USERNAME: "usuario",
-    TargetKind.DOMAIN: "dominio",
-    TargetKind.IP: "dirección IP",
-    TargetKind.HOST: "dominio o IP",
+    TargetKind.USERNAME: "username",
+    TargetKind.DOMAIN: "domain",
+    TargetKind.IP: "IP address",
+    TargetKind.HOST: "domain or IP",
 }
 
 _MAIN_CHOICES = [
-    "Ejecutar una herramienta",
-    "Generar informe completo",
-    "Ver estado de herramientas",
-    "Instalar herramientas que falten",
-    "Gestionar alcance (scope)",
-    "Ver historial",
-    "Salir",
+    "Run a tool",
+    "Generate a full report",
+    "View tool status",
+    "Install missing tools",
+    "Manage scope",
+    "View history",
+    "Exit",
 ]
 
 
 def main_menu() -> None:
     if not sys.stdin.isatty():
         console.print(
-            "[muted]No hay una terminal interactiva disponible; "
-            "usa comandos directos ('mrrobot --help').[/muted]"
+            "[muted]No interactive terminal available; "
+            "use direct commands instead ('mrrobot --help').[/muted]"
         )
         return
 
     render_banner(__version__)
     console.print(
-        "[muted]↑/↓ para moverte, Enter para elegir. "
-        "También puedes usar comandos directos: 'mrrobot --help'.[/muted]\n"
+        "[muted]↑/↓ to move, Enter to choose. "
+        "You can also use direct commands: 'mrrobot --help'.[/muted]\n"
     )
 
     try:
         while True:
             choice = questionary.select(
-                "¿Qué quieres hacer?", choices=_MAIN_CHOICES, style=_STYLE
+                "What do you want to do?", choices=_MAIN_CHOICES, style=_STYLE
             ).ask()
-            if choice is None or choice == "Salir":
-                console.print("[muted]Hasta luego.[/muted]")
+            if choice is None or choice == "Exit":
+                console.print("[muted]Bye.[/muted]")
                 return
 
             console.print()
-            if choice == "Ejecutar una herramienta":
+            if choice == "Run a tool":
                 _run_tool_flow()
-            elif choice == "Generar informe completo":
+            elif choice == "Generate a full report":
                 run_wizard(None)
-            elif choice == "Ver estado de herramientas":
+            elif choice == "View tool status":
                 actions.print_tools_table(online=False)
-            elif choice == "Instalar herramientas que falten":
+            elif choice == "Install missing tools":
                 actions.install_all_missing()
-            elif choice == "Gestionar alcance (scope)":
+            elif choice == "Manage scope":
                 _scope_flow()
-            elif choice == "Ver historial":
+            elif choice == "View history":
                 actions.print_history(20)
             console.print()
     except (KeyboardInterrupt, EOFError):
-        console.print("\n[muted]Hasta luego.[/muted]")
+        console.print("\n[muted]Bye.[/muted]")
 
 
 def _run_tool_flow() -> None:
@@ -89,16 +89,16 @@ def _run_tool_flow() -> None:
         for a in adapters
     ]
     choice = questionary.select(
-        "¿Qué herramienta quieres ejecutar?",
-        choices=[*labels, _VOLVER],
+        "Which tool do you want to run?",
+        choices=[*labels, _BACK],
         style=_STYLE,
     ).ask()
-    if choice is None or choice == _VOLVER:
+    if choice is None or choice == _BACK:
         return
 
     adapter = adapters[labels.index(choice)]
     hint = _TARGET_HINTS[adapter.meta.target_kind]
-    target = questionary.text(f"Objetivo ({hint}):", style=_STYLE).ask()
+    target = questionary.text(f"Target ({hint}):", style=_STYLE).ask()
     if not target or not target.strip():
         return
     target = target.strip()
@@ -106,7 +106,7 @@ def _run_tool_flow() -> None:
     extra: dict[str, object] = {}
     if adapter.meta.name == "nmap":
         ports = questionary.text(
-            "Puertos (opcional, p.ej. '1-1000'; Enter para el escaneo por defecto):",
+            "Ports (optional, e.g. '1-1000'; Enter for the default scan):",
             style=_STYLE,
         ).ask()
         extra["ports"] = ports.strip() if ports else None
@@ -117,22 +117,22 @@ def _run_tool_flow() -> None:
 
 def _scope_flow() -> None:
     choice = questionary.select(
-        "Alcance autorizado",
-        choices=["Ver estado actual", "Crear/abrir plantilla", _VOLVER],
+        "Authorized scope",
+        choices=["View current status", "Create/open template", _BACK],
         style=_STYLE,
     ).ask()
-    if choice is None or choice == _VOLVER:
+    if choice is None or choice == _BACK:
         return
-    if choice == "Ver estado actual":
+    if choice == "View current status":
         if not SCOPE_FILE.exists():
-            console.print("[warn]Sin scope definido todavía.[/warn]")
+            console.print("[warn]No scope defined yet.[/warn]")
             return
         scope = load_scope()
-        estado = "[ok]autorizado[/ok]" if scope.authorized else "[err]NO autorizado[/err]"
-        console.print(f"Estado: {estado}")
-        console.print(f"Dominios: {scope.domains or '—'}")
-        console.print(f"Redes:    {scope.networks or '—'}")
-    elif choice == "Crear/abrir plantilla":
+        status = "[ok]authorized[/ok]" if scope.authorized else "[err]NOT authorized[/err]"
+        console.print(f"Status:   {status}")
+        console.print(f"Domains:  {scope.domains or '—'}")
+        console.print(f"Networks: {scope.networks or '—'}")
+    elif choice == "Create/open template":
         path = write_scope_template()
-        console.print(f"[ok]✓[/ok] Plantilla en: [bold]{path}[/bold]")
-        console.print("[muted]Edítala a mano y pon authorized = true.[/muted]")
+        console.print(f"[ok]✓[/ok] Template at: [bold]{path}[/bold]")
+        console.print("[muted]Edit it by hand and set authorized = true.[/muted]")

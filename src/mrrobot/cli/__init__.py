@@ -1,1 +1,1 @@
-"""Paquete de mrrobot."""
+"""mrrobot package."""

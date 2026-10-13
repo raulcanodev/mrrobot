@@ -1,6 +1,6 @@
-"""Adaptador de Sherlock: busca un nombre de usuario en perfiles públicos.
+"""Sherlock adapter: looks up a username across public profiles.
 
-Es reconocimiento PASIVO: consulta sitios web públicos, no ataca un objetivo.
+PASSIVE recon: it queries public websites, it doesn't attack a target.
 Upstream: https://github.com/sherlock-project/sherlock (MIT).
 """
 
@@ -16,7 +16,7 @@ class Sherlock(ToolAdapter):
         category=Category.OSINT,
         mode=Mode.PASSIVE,
         target_kind=TargetKind.USERNAME,
-        summary="Busca un nombre de usuario en cientos de redes sociales públicas.",
+        summary="Looks up a username across hundreds of public social networks.",
         binary="sherlock",
         repo="sherlock-project/sherlock",
         version_cmd=["sherlock", "--version"],
@@ -26,5 +26,5 @@ class Sherlock(ToolAdapter):
     )
 
     def build_args(self, target: str, **options: object) -> list[str]:
-        # --print-found: solo perfiles encontrados; --no-color para capturar salida limpia.
+        # --print-found: only matched profiles; --no-color for clean captured output.
         return [target, "--print-found", "--no-color"]

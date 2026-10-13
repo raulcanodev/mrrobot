@@ -1,17 +1,17 @@
-"""Adaptador base para herramientas, externas o integradas.
+"""Base adapter for tools, whether external or built-in.
 
-Cada herramienta que integremos hereda de ToolAdapter. Hay dos formas de
-implementarla:
+Every tool we integrate subclasses ToolAdapter. There are two ways to
+implement one:
 
-  1. Externa (la mayoría): sobrescribe `build_args()` para traducir una
-     petición de alto nivel a los argumentos del binario. `execute()` ya
-     sabe lanzar el proceso con esos argumentos.
-  2. Integrada ("builtin", sin binario externo, p. ej. una consulta a una
-     API pública): sobrescribe `execute()` directamente y construye su
-     propio `RunResult` con `make_result()`.
+  1. External (most of them): override `build_args()` to translate a
+     high-level request into the binary's arguments. `execute()` already
+     knows how to launch the process with those arguments.
+  2. Built-in ("builtin", no external binary, e.g. a public API call):
+     override `execute()` directly and build its own `RunResult` with
+     `make_result()`.
 
-La lógica común (autorización de scope, medición de tiempo, normalización)
-vive aquí, así que añadir una herramienta nueva son pocas líneas.
+The shared logic (scope authorization, timing, normalization) lives here,
+so adding a new tool is just a few lines.
 """
 
 from __future__ import annotations
@@ -34,12 +34,12 @@ def make_result(
     started_at: float,
     command: list[str] | None = None,
 ) -> RunResult:
-    """Construye un RunResult uniforme para herramientas integradas."""
+    """Build a uniform RunResult for built-in tools."""
     return RunResult(
         tool=meta.name,
         target=target,
         mode=meta.mode,
-        command=command or [f"(integrado) {meta.name}"],
+        command=command or [f"(built-in) {meta.name}"],
         returncode=returncode,
         stdout=stdout,
         stderr=stderr,
@@ -52,16 +52,16 @@ class ToolAdapter(ABC):
     meta: ToolMeta
 
     def build_args(self, target: str, **options: object) -> list[str]:
-        """Traduce la petición a argumentos del binario. Solo para herramientas
-        externas; las integradas sobrescriben execute() y no necesitan esto."""
+        """Translate the request into the binary's arguments. Only needed by
+        external tools; built-in ones override execute() instead."""
         raise NotImplementedError(
-            f"{type(self).__name__} no implementa build_args(); "
-            "si es una herramienta integrada, sobrescribe execute()."
+            f"{type(self).__name__} doesn't implement build_args(); "
+            "if it's a built-in tool, override execute() instead."
         )
 
     def execute(self, target: str, *, timeout: int = 300, **options: object) -> RunResult:
-        """Ejecuta la herramienta y devuelve el resultado. Por defecto lanza
-        el binario externo con build_args(); las integradas lo sobrescriben."""
+        """Run the tool and return the result. By default launches the
+        external binary via build_args(); built-in tools override this."""
         args = self.build_args(target, **options)
         return run_tool(self.meta, args, target, timeout=timeout)
 
@@ -73,12 +73,12 @@ class ToolAdapter(ABC):
         timeout: int = 300,
         **options: object,
     ) -> RunResult:
-        # Barrera de autorización: lo ACTIVO solo contra objetivos en alcance.
+        # Authorization gate: ACTIVE actions only against in-scope targets.
         if self.meta.mode is Mode.ACTIVE and not scope.allows(target):
             raise NotAuthorized(
-                f"'{target}' no está en tu alcance autorizado. "
-                f"La herramienta '{self.meta.name}' envía tráfico al objetivo "
-                f"(modo ACTIVO) y requiere permiso explícito. "
-                f"Ejecuta 'mrrobot scope init' y declara el objetivo."
+                f"'{target}' is not in your authorized scope. "
+                f"'{self.meta.name}' sends traffic to the target "
+                f"(ACTIVE mode) and requires explicit permission. "
+                f"Run 'mrrobot scope init' and declare the target."
             )
         return self.execute(target, timeout=timeout, **options)

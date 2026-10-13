@@ -1,9 +1,9 @@
-"""Asistente interactivo para generar un informe completo.
+"""Interactive wizard to generate a full report.
 
-Pregunta si se quiere generar el informe, sobre qué objetivo, qué tipo de
-objetivo es y qué herramientas aplicables incluir (con un selector de
-casillas, flechas + espacio); las ejecuta, imprime un resumen en consola y
-ofrece guardar el detalle completo en un .txt.
+Asks whether to generate the report, against which target, what kind of
+target it is, and which applicable tools to include (via a checkbox
+selector, arrows + space); runs them, prints a console summary, and
+offers to save the full detail to a .txt file.
 """
 
 from __future__ import annotations
@@ -19,13 +19,14 @@ from ..core.console import console, err_console
 from ..core.models import Mode, TargetKind
 from ..core.report import Report, Section, save_report
 from ..core.runner import NotAuthorized, ToolNotInstalled, which
+from . import actions
 from .style import QUESTIONARY_STYLE as _STYLE
 
 _PREVIEW_LINES = 20
 
 _KIND_WANTS: dict[str, set[TargetKind]] = {
-    "dominio": {TargetKind.DOMAIN, TargetKind.HOST},
-    "usuario": {TargetKind.USERNAME},
+    "domain": {TargetKind.DOMAIN, TargetKind.HOST},
+    "username": {TargetKind.USERNAME},
     "ip": {TargetKind.IP, TargetKind.HOST},
 }
 
@@ -36,29 +37,29 @@ def _guess_kind(target: str) -> str:
         return "ip"
     except ValueError:
         pass
-    return "dominio" if "." in target else "usuario"
+    return "domain" if "." in target else "username"
 
 
 def run_wizard(target: str | None) -> None:
     if not questionary.confirm(
-        "¿Quieres generar un informe completo ahora?", default=True, style=_STYLE
+        "Generate a full report now?", default=True, style=_STYLE
     ).ask():
-        console.print("[muted]Cancelado.[/muted]")
+        console.print("[muted]Cancelled.[/muted]")
         return
 
     if not target:
         target = questionary.text(
-            "¿Sobre qué objetivo? (dominio, usuario o IP):", style=_STYLE
+            "Which target? (domain, username or IP):", style=_STYLE
         ).ask()
     target = (target or "").strip()
     if not target:
-        err_console.print("[err]No se indicó ningún objetivo.[/err]")
+        err_console.print("[err]No target given.[/err]")
         return
 
     guess = _guess_kind(target)
-    kinds = ["dominio", "usuario", "ip"]
+    kinds = ["domain", "username", "ip"]
     kind = questionary.select(
-        "¿Qué es este objetivo?",
+        "What kind of target is this?",
         choices=kinds,
         default=guess,
         style=_STYLE,
@@ -68,7 +69,7 @@ def run_wizard(target: str | None) -> None:
 
     candidates = [a for a in registry.all_adapters() if a.meta.target_kind in _KIND_WANTS[kind]]
     if not candidates:
-        err_console.print("[err]No hay herramientas aplicables a ese tipo de objetivo.[/err]")
+        err_console.print("[err]No tools apply to this kind of target.[/err]")
         return
 
     scope = load_scope()
@@ -76,23 +77,23 @@ def run_wizard(target: str | None) -> None:
     missing = [a for a in candidates if a not in available]
 
     if not available:
-        err_console.print("[err]Ninguna herramienta aplicable está instalada.[/err]")
+        err_console.print("[err]No applicable tool is installed.[/err]")
         if missing:
-            console.print("[muted]Instálalas con 'mrrobot tools install <nombre>'.[/muted]")
+            console.print("[muted]Install them with 'mrrobot tools install <name>'.[/muted]")
         return
 
     if missing:
         names = ", ".join(a.meta.name for a in missing)
-        console.print(f"[muted]No instaladas (omitidas de la lista): {names}[/muted]\n")
+        console.print(f"[muted]Not installed (left out of the list): {names}[/muted]\n")
 
     def _choice_label(adapter) -> str:
         is_active = adapter.meta.mode is Mode.ACTIVE
-        mode_txt = "ACTIVO" if is_active else "pasivo"
-        blocked = " — FUERA DE SCOPE" if is_active and not scope.allows(target) else ""
+        mode_txt = "ACTIVE" if is_active else "passive"
+        blocked = " — OUT OF SCOPE" if is_active and not scope.allows(target) else ""
         return f"{adapter.meta.name} ({mode_txt}{blocked}) — {adapter.meta.summary}"
 
     chosen = questionary.checkbox(
-        "¿Qué herramientas incluyo? (espacio para marcar/desmarcar, Enter para continuar)",
+        "Which tools should I include? (space to toggle, Enter to continue)",
         choices=[
             questionary.Choice(_choice_label(a), value=a, checked=True) for a in available
         ],
@@ -100,46 +101,55 @@ def run_wizard(target: str | None) -> None:
     ).ask()
 
     if not chosen:
-        err_console.print("[err]No se seleccionó ninguna herramienta.[/err]")
+        err_console.print("[err]No tool was selected.[/err]")
         return
 
     report = Report(target=target, kind=kind)
     console.print()
-    for adapter in chosen:
+    total = len(chosen)
+    for i, adapter in enumerate(chosen, start=1):
         is_active = adapter.meta.mode is Mode.ACTIVE
-        mode_label = "[active]ACTIVO[/active]" if is_active else "[passive]PASIVO[/passive]"
-        console.print(f"▶ {adapter.meta.name} ({mode_label})… ", end="")
+        mode_label = "[active]ACTIVE[/active]" if is_active else "[passive]passive[/passive]"
+        step = f"[{i}/{total}]"
         try:
-            with console.status("", spinner="dots"):
-                result = adapter.run(target, scope=scope)
+            result = actions.run_with_progress(
+                f"{step} Running {adapter.meta.name} ({mode_label})…",
+                lambda a=adapter: a.run(target, scope=scope),
+            )
         except NotAuthorized:
-            console.print("[err]bloqueada (fuera de scope)[/err]")
+            console.print(f"[err]✗ {step} {adapter.meta.name} — blocked (out of scope)[/err]")
             report.sections.append(
                 Section(
                     tool=adapter.meta.name,
                     mode=adapter.meta.mode,
                     status="blocked",
                     detail=(
-                        "Bloqueada: el objetivo no está en tu alcance autorizado "
-                        "('mrrobot scope init' para declararlo)."
+                        "Blocked: the target is not in your authorized scope "
+                        "('mrrobot scope init' to declare it)."
                     ),
                 )
             )
             continue
         except ToolNotInstalled:
-            console.print("[err]no instalada[/err]")
+            console.print(f"[err]✗ {step} {adapter.meta.name} — not installed[/err]")
             report.sections.append(
                 Section(
                     tool=adapter.meta.name,
                     mode=adapter.meta.mode,
                     status="missing",
-                    detail="No estaba instalada en el momento de ejecutar el informe.",
+                    detail="It wasn't installed when the report ran.",
                 )
             )
             continue
 
         storage.save_run(result)
-        console.print("[ok]ok[/ok]" if result.ok else f"[warn]código {result.returncode}[/warn]")
+        if result.ok:
+            console.print(f"[ok]✓ {step} {adapter.meta.name}[/ok] — {result.duration_s}s")
+        else:
+            console.print(
+                f"[warn]⚠ {step} {adapter.meta.name}[/warn] "
+                f"— exit code {result.returncode} ({result.duration_s}s)"
+            )
         report.sections.append(
             Section(
                 tool=adapter.meta.name,
@@ -153,16 +163,16 @@ def run_wizard(target: str | None) -> None:
     _print_summary(report)
 
     if questionary.confirm(
-        "¿Guardar este informe completo en un archivo .txt?", default=True, style=_STYLE
+        "Save this full report to a .txt file?", default=True, style=_STYLE
     ).ask():
         path = save_report(report)
-        console.print(f"[ok]✓ Informe guardado en:[/ok] {path}")
+        console.print(f"[ok]✓ Report saved to:[/ok] {path}")
     else:
-        console.print("[muted]Informe no guardado en disco (solo quedó en consola).[/muted]")
+        console.print("[muted]Report not saved to disk (console only).[/muted]")
 
 
 def _print_summary(report: Report) -> None:
-    console.rule(f"[brand]Informe — {report.target} ({report.kind})[/brand]")
+    console.rule(f"[brand]Report — {report.target} ({report.kind})[/brand]")
     for sec in report.sections:
         if sec.status == "ok":
             title = f"[ok]✓ {sec.tool}[/ok]"
@@ -172,16 +182,16 @@ def _print_summary(report: Report) -> None:
             title = f"[err]✗ {sec.tool}[/err]"
 
         if sec.result is not None:
-            # Si falló y no dejó nada en stdout, el motivo está en stderr
-            # (p. ej. un adaptador integrado que reporta un error de red ahí).
+            # If it failed and left nothing in stdout, the reason is in
+            # stderr (e.g. a built-in adapter reporting a network error there).
             text = sec.result.stdout.rstrip()
             if not text and sec.status == "fail":
                 text = sec.result.stderr.rstrip()
-            all_lines = text.splitlines() or ["(sin salida)"]
+            all_lines = text.splitlines() or ["(no output)"]
             body = "\n".join(all_lines[:_PREVIEW_LINES])
             if len(all_lines) > _PREVIEW_LINES:
                 remaining = len(all_lines) - _PREVIEW_LINES
-                body += f"\n[muted]… +{remaining} líneas más (ver el .txt si lo guardas)[/muted]"
+                body += f"\n[muted]… +{remaining} more lines (see the saved .txt)[/muted]"
         else:
             body = sec.detail
 

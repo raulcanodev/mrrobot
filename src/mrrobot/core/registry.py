@@ -1,8 +1,8 @@
-"""Registro central de herramientas.
+"""Central tool registry.
 
-Un único punto donde se listan los adaptadores disponibles. Añadir una
-herramienta nueva es: crear su adaptador y registrarlo aquí. La CLI y
-cualquier futura interfaz consultan solo este registro.
+A single place that lists the available adapters. Adding a new tool means:
+create its adapter and register it here. The CLI, and any future
+interface, only ever query this registry.
 """
 
 from __future__ import annotations
@@ -20,18 +20,18 @@ from ..tools.web.subfinder import Subfinder
 from ..tools.web.wayback import Wayback
 from .models import Category
 
-# Instancias de los adaptadores integrados.
+# Instances of the built-in adapters.
 _ADAPTERS: list[ToolAdapter] = [
     # OSINT
     Sherlock(),
     TheHarvester(),
     Whois(),
-    # Web / dominios
+    # Web / domains
     Subfinder(),
     Amass(),
     CrtSh(),
     Wayback(),
-    # Red
+    # Network
     Nmap(),
     InternetDB(),
     CertInfo(),

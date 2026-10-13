@@ -1,4 +1,4 @@
-"""Tests del core sin dependencias de red ni binarios externos."""
+"""Core tests with no network or external-binary dependencies."""
 
 from __future__ import annotations
 
@@ -13,9 +13,9 @@ from mrrobot.core.updates import is_newer
 
 def test_registry_has_tools():
     adapters = registry.all_adapters()
-    assert adapters, "debe haber al menos una herramienta registrada"
+    assert adapters, "there should be at least one registered tool"
     assert registry.get("sherlock") is not None
-    assert registry.get("NMAP") is not None  # insensible a mayúsculas
+    assert registry.get("NMAP") is not None  # case-insensitive
 
 
 def test_version_comparison():
@@ -25,16 +25,16 @@ def test_version_comparison():
 
 
 def test_scope_blocks_unauthorized_target():
-    scope = Scope(domains=["ejemplo.com"], authorized=False)
-    # authorized=False bloquea todo lo activo.
-    assert not scope.allows("ejemplo.com")
+    scope = Scope(domains=["example.com"], authorized=False)
+    # authorized=False blocks everything active.
+    assert not scope.allows("example.com")
 
 
 def test_scope_allows_authorized_domain_and_wildcard():
-    scope = Scope(domains=["ejemplo.com", "*.lab.local"], authorized=True)
-    assert scope.allows("ejemplo.com")
+    scope = Scope(domains=["example.com", "*.lab.local"], authorized=True)
+    assert scope.allows("example.com")
     assert scope.allows("api.lab.local")
-    assert not scope.allows("otro.com")
+    assert not scope.allows("other.com")
 
 
 def test_scope_allows_network_cidr():

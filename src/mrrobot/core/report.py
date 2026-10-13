@@ -1,8 +1,8 @@
-"""Informes: agregan los resultados de varias herramientas sobre un objetivo.
+"""Reports: aggregate the results of several tools against one target.
 
-Separado de la CLI para que el motor de informes (qué se ejecutó, en qué
-orden, con qué resultado) sea reutilizable por cualquier interfaz futura.
-La CLI solo se encarga de la parte interactiva (preguntar, mostrar, guardar).
+Kept separate from the CLI so the reporting engine (what ran, in what
+order, with what result) is reusable by any future interface. The CLI only
+handles the interactive part (asking, showing, saving).
 """
 
 from __future__ import annotations
@@ -17,13 +17,13 @@ from .models import Mode, RunResult
 
 REPORTS_DIR = DATA_DIR / "reports"
 
-# Estado de una sección cuando no hubo RunResult (bloqueada o no instalada).
+# A section's status when there was no RunResult (blocked or not installed).
 Status = str  # "ok" | "fail" | "blocked" | "missing"
 
 
 @dataclass
 class Section:
-    """Resultado de una herramienta dentro de un informe."""
+    """One tool's result within a report."""
 
     tool: str
     mode: Mode
@@ -34,7 +34,7 @@ class Section:
 
 @dataclass
 class Report:
-    """Un informe completo: un objetivo y lo que cada herramienta encontró."""
+    """A full report: one target and what each tool found about it."""
 
     target: str
     kind: str
@@ -42,28 +42,28 @@ class Report:
     generated_at: float = field(default_factory=time.time)
 
     def to_text(self) -> str:
-        """Representación completa en texto plano, pensada para un .txt."""
+        """Full plain-text representation, meant for a .txt file."""
         when = datetime.fromtimestamp(self.generated_at).strftime("%Y-%m-%d %H:%M:%S")
         lines = [
             "=" * 72,
-            "  INFORME mrrobot",
+            "  mrrobot REPORT",
             "=" * 72,
-            f"Objetivo:  {self.target}  ({self.kind})",
-            f"Generado:  {when}",
-            f"Secciones: {len(self.sections)}",
+            f"Target:    {self.target}  ({self.kind})",
+            f"Generated: {when}",
+            f"Sections:  {len(self.sections)}",
             "",
         ]
         for sec in self.sections:
             lines.append("-" * 72)
-            lines.append(f"[{sec.tool}]  modo={sec.mode.value}  estado={sec.status}")
+            lines.append(f"[{sec.tool}]  mode={sec.mode.value}  status={sec.status}")
             if sec.detail:
                 lines.append(sec.detail)
             if sec.result is not None:
                 r = sec.result
-                lines.append(f"comando:  {' '.join(r.command)}")
-                lines.append(f"duración: {r.duration_s}s   código de salida: {r.returncode}")
+                lines.append(f"command:  {' '.join(r.command)}")
+                lines.append(f"duration: {r.duration_s}s   exit code: {r.returncode}")
                 lines.append("")
-                lines.append(r.stdout.rstrip() or "(sin salida)")
+                lines.append(r.stdout.rstrip() or "(no output)")
                 if r.stderr.strip():
                     lines.append("")
                     lines.append("stderr:")
@@ -76,7 +76,7 @@ class Report:
 def default_report_path(target: str) -> Path:
     ensure_dirs()
     REPORTS_DIR.mkdir(parents=True, exist_ok=True)
-    safe = "".join(c if c.isalnum() or c in "-_." else "_" for c in target.strip()) or "objetivo"
+    safe = "".join(c if c.isalnum() or c in "-_." else "_" for c in target.strip()) or "target"
     stamp = time.strftime("%Y%m%d-%H%M%S")
     return REPORTS_DIR / f"{safe}-{stamp}.txt"
 

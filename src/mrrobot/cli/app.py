@@ -1,13 +1,13 @@
-"""Punto de entrada de la CLI (Typer).
+"""CLI entry point (Typer).
 
-La CLI es una capa fina sobre el core: traduce comandos a llamadas del
-registro/runner y presenta los resultados con Rich. Toda la lógica reutilizable
-vive en mrrobot.core (y en actions.py para lo compartido con el menú), de modo
-que mañana una TUI (Textual) pueda apoyarse en exactamente lo mismo.
+The CLI is a thin layer over the core: it translates commands into
+registry/runner calls and renders results with Rich. All reusable logic
+lives in mrrobot.core (and in actions.py for what's shared with the menu),
+so a future interface (a Textual TUI) could lean on exactly the same code.
 
-Sin argumentos, 'mrrobot' abre el menú interactivo (selector con flechas).
-Cada acción del menú tiene también su comando directo — nunca es la única
-forma de hacer algo.
+With no arguments, 'mrrobot' opens the interactive menu (an arrow-key
+selector). Every menu action also has its own direct command — the menu is
+never the only way to do something.
 """
 
 from __future__ import annotations
@@ -25,12 +25,12 @@ from .report_wizard import run_wizard
 app = typer.Typer(
     add_completion=False,
     no_args_is_help=False,
-    help="mrrobot — orquestador modular de OSINT y pentesting autorizado.",
+    help="mrrobot — modular orchestrator for authorized OSINT & pentesting.",
     rich_markup_mode="rich",
 )
 
-scope_app = typer.Typer(help="Gestiona tu alcance autorizado (scope).")
-tools_app = typer.Typer(help="Lista, comprueba e instala las herramientas.")
+scope_app = typer.Typer(help="Manage your authorized scope.")
+tools_app = typer.Typer(help="List, check and install tools.")
 app.add_typer(scope_app, name="scope")
 app.add_typer(tools_app, name="tools")
 
@@ -38,14 +38,14 @@ app.add_typer(tools_app, name="tools")
 @app.callback(invoke_without_command=True)
 def _root(
     ctx: typer.Context,
-    version: bool = typer.Option(False, "--version", help="Muestra la versión y sale."),
+    version: bool = typer.Option(False, "--version", help="Show the version and exit."),
 ) -> None:
     if version:
         console.print(f"mrrobot v{__version__}")
         raise typer.Exit()
     if ctx.invoked_subcommand is None:
-        # Sin argumentos: menú interactivo. Con cualquier subcomando, la vía
-        # manual de siempre (no se toca el comportamiento habitual).
+        # No arguments: interactive menu. Any subcommand still goes through
+        # the usual manual path (its behavior is unchanged).
         from .menu import main_menu
 
         main_menu()
@@ -53,7 +53,7 @@ def _root(
 
 @app.command("menu")
 def menu_command() -> None:
-    """Abre el menú interactivo (lo mismo que ejecutar 'mrrobot' sin nada más)."""
+    """Open the interactive menu (same as running 'mrrobot' with nothing else)."""
     from .menu import main_menu
 
     main_menu()
@@ -64,10 +64,10 @@ def tools_list(
     ctx: typer.Context,
     online: bool = typer.Option(
         False, "--online/--offline",
-        help="Consulta GitHub para comprobar si hay versiones más nuevas.",
+        help="Check GitHub for newer versions.",
     ),
 ) -> None:
-    """Lista las herramientas integradas y su estado."""
+    """List the built-in tools and their status."""
     if ctx.invoked_subcommand is not None:
         return
     actions.print_tools_table(online)
@@ -75,17 +75,17 @@ def tools_list(
 
 @tools_app.command("install")
 def tools_install(
-    name: str = typer.Argument(None, help="Nombre de la herramienta. Omite si usas --all."),
+    name: str = typer.Argument(None, help="Tool name. Omit if using --all."),
     all_missing: bool = typer.Option(
-        False, "--all", help="Instala de una vez todas las herramientas externas que falten."
+        False, "--all", help="Install every missing external tool in one go."
     ),
 ) -> None:
-    """Instala una herramienta externa, o todas las que falten con --all."""
+    """Install an external tool, or every missing one with --all."""
     if all_missing:
         actions.install_all_missing()
         return
     if not name:
-        err_console.print("[err]Indica un nombre, o usa '--all' para instalarlas todas.[/err]")
+        err_console.print("[err]Give a name, or use '--all' to install everything.[/err]")
         raise typer.Exit(code=2)
     ok = actions.install_one(name)
     raise typer.Exit(code=0 if ok else 1)
@@ -93,37 +93,37 @@ def tools_install(
 
 @scope_app.command("init")
 def scope_init() -> None:
-    """Crea la plantilla de alcance autorizado y muestra su ruta."""
+    """Create the authorized-scope template and show its path."""
     path = write_scope_template()
-    console.print(f"[ok]✓[/ok] Plantilla de alcance en: [bold]{path}[/bold]")
-    console.print("[muted]Edítala con tus objetivos autorizados y pon authorized = true.[/muted]")
+    console.print(f"[ok]✓[/ok] Scope template at: [bold]{path}[/bold]")
+    console.print("[muted]Edit it with your authorized targets and set authorized = true.[/muted]")
 
 
 @scope_app.command("show")
 def scope_show() -> None:
-    """Muestra el alcance autorizado actual."""
+    """Show the current authorized scope."""
     scope = load_scope()
     if not SCOPE_FILE.exists():
-        console.print("[warn]Sin scope definido.[/warn] Ejecuta 'mrrobot scope init'.")
+        console.print("[warn]No scope defined.[/warn] Run 'mrrobot scope init'.")
         raise typer.Exit()
-    estado = "[ok]autorizado[/ok]" if scope.authorized else "[err]NO autorizado[/err]"
-    console.print(f"Estado: {estado}")
-    console.print(f"Dominios: {scope.domains or '—'}")
-    console.print(f"Redes:    {scope.networks or '—'}")
+    status = "[ok]authorized[/ok]" if scope.authorized else "[err]NOT authorized[/err]"
+    console.print(f"Status:   {status}")
+    console.print(f"Domains:  {scope.domains or '—'}")
+    console.print(f"Networks: {scope.networks or '—'}")
 
 
 @app.command()
 def run(
-    tool: str = typer.Argument(..., help="Nombre de la herramienta (ver 'mrrobot tools')."),
-    target: str = typer.Argument(..., help="Objetivo: usuario, dominio o IP según la herramienta."),
-    timeout: int = typer.Option(300, help="Tiempo máximo de ejecución en segundos."),
-    ports: str = typer.Option("", help="Puertos para herramientas de red, p.ej. '1-1000'."),
+    tool: str = typer.Argument(..., help="Tool name (see 'mrrobot tools')."),
+    target: str = typer.Argument(..., help="Target: username, domain or IP depending on the tool."),
+    timeout: int = typer.Option(300, help="Maximum run time in seconds."),
+    ports: str = typer.Option("", help="Ports for network tools, e.g. '1-1000'."),
 ) -> None:
-    """Ejecuta una herramienta contra un objetivo."""
+    """Run a tool against a target."""
     adapter = registry.get(tool)
     if adapter is None:
-        err_console.print(f"[err]Herramienta desconocida:[/err] {tool}")
-        err_console.print("[muted]Usa 'mrrobot tools' para ver las disponibles.[/muted]")
+        err_console.print(f"[err]Unknown tool:[/err] {tool}")
+        err_console.print("[muted]Run 'mrrobot tools' to see what's available.[/muted]")
         raise typer.Exit(code=2)
 
     scope = load_scope()
@@ -131,16 +131,16 @@ def run(
 
 
 @app.command()
-def history(limit: int = typer.Option(20, help="Número de ejecuciones a mostrar.")) -> None:
-    """Muestra el historial de ejecuciones guardadas."""
+def history(limit: int = typer.Option(20, help="Number of runs to show.")) -> None:
+    """Show the saved run history."""
     actions.print_history(limit)
 
 
 @app.command()
 def report(
-    target: str = typer.Argument(None, help="Dominio, usuario o IP. Si se omite, se pregunta."),
+    target: str = typer.Argument(None, help="Domain, username or IP. Asked for if omitted."),
 ) -> None:
-    """Asistente interactivo: elige herramientas y genera un informe completo."""
+    """Interactive wizard: pick tools and generate a full report."""
     render_banner(__version__)
     run_wizard(target)
 
@@ -148,10 +148,10 @@ def report(
 @app.command()
 def doctor(
     online: bool = typer.Option(
-        True, "--online/--offline", help="Comprobar actualizaciones en red."
+        True, "--online/--offline", help="Check for updates over the network."
     ),
 ) -> None:
-    """Chequeo de arranque: herramientas presentes y actualizaciones."""
+    """Startup check: which tools are present, and any available updates."""
     render_banner(__version__)
     actions.print_startup_notices(online)
 

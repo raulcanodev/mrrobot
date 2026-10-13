@@ -1,16 +1,19 @@
-"""Acciones compartidas entre los comandos directos y el menú interactivo.
+"""Actions shared between direct commands and the interactive menu.
 
-Tanto `mrrobot run ...` como el menú con selector llaman exactamente a las
-mismas funciones de aquí, así que nunca hay dos implementaciones de lo mismo
-ni un camino que haga algo distinto del otro.
+Both `mrrobot run ...` and the menu's selector call exactly the same
+functions here, so there's never two implementations of the same thing,
+or one path doing something the other doesn't.
 """
 
 from __future__ import annotations
 
 import subprocess
+from collections.abc import Callable
+from typing import TypeVar
 
 import httpx
 import typer
+from rich.progress import Progress, SpinnerColumn, TextColumn, TimeElapsedColumn
 from rich.table import Table
 
 from ..core import registry, storage
@@ -21,6 +24,26 @@ from ..core.models import Mode, ToolStatus
 from ..core.runner import NotAuthorized, ToolNotInstalled, which
 from ..core.updates import check_tool
 from ..tools.base import ToolAdapter
+
+T = TypeVar("T")
+
+
+def run_with_progress(description: str, fn: Callable[[], T]) -> T:
+    """Run a blocking call behind a live spinner + elapsed-time counter.
+
+    Used for anything that can take a while (an external scan, a slow
+    public API) so the user always sees what's running and for how long,
+    instead of a silent or empty spinner.
+    """
+    with Progress(
+        SpinnerColumn(),
+        TextColumn("{task.description}"),
+        TimeElapsedColumn(),
+        console=console,
+        transient=True,
+    ) as progress:
+        progress.add_task(description, total=None)
+        return fn()
 
 
 def check_all(online: bool) -> list[ToolStatus]:
@@ -36,7 +59,7 @@ def check_all(online: bool) -> list[ToolStatus]:
 
 
 def print_startup_notices(online: bool) -> None:
-    """Al arrancar: avisa de herramientas ausentes o con actualización disponible."""
+    """On startup: warn about missing tools or available updates."""
     statuses = check_all(online)
     missing = [s for s in statuses if not s.installed]
     updates = [s for s in statuses if s.update_available]
@@ -44,39 +67,39 @@ def print_startup_notices(online: bool) -> None:
     if missing:
         names = ", ".join(s.meta.name for s in missing)
         console.print(
-            f"[warn]⚠ No instaladas:[/warn] {names} "
-            f"[muted](usa 'mrrobot tools install --all' para instalarlas)[/muted]"
+            f"[warn]⚠ Not installed:[/warn] {names} "
+            f"[muted](run 'mrrobot tools install --all' to install them)[/muted]"
         )
     if updates:
         for s in updates:
             console.print(
-                f"[warn]↑ Actualización:[/warn] {s.meta.name} "
+                f"[warn]↑ Update available:[/warn] {s.meta.name} "
                 f"{s.installed_version} → [ok]{s.latest_version}[/ok]"
             )
     if not missing and not updates and online:
-        console.print("[ok]✓ Todas las herramientas integradas están al día.[/ok]")
+        console.print("[ok]✓ All built-in tools are up to date.[/ok]")
 
 
 def print_tools_table(online: bool) -> list[ToolStatus]:
-    """Imprime la tabla de herramientas y devuelve las que faltan instalar."""
+    """Print the tools table and return the ones that still need installing."""
     statuses = sorted(check_all(online), key=lambda s: (s.meta.category.value, s.meta.name))
-    table = Table(title="Herramientas integradas", title_style="brand", expand=True)
-    table.add_column("Herramienta", style="bold")
-    table.add_column("Categoría")
-    table.add_column("Modo")
-    table.add_column("Instalada")
-    table.add_column("Versión")
+    table = Table(title="Built-in tools", title_style="brand", expand=True)
+    table.add_column("Tool", style="bold")
+    table.add_column("Category")
+    table.add_column("Mode")
+    table.add_column("Installed")
+    table.add_column("Version")
     if online:
-        table.add_column("Última")
+        table.add_column("Latest")
 
     for s in statuses:
         mode_style = "active" if s.meta.mode is Mode.ACTIVE else "passive"
-        version = "integrado" if s.meta.builtin else (s.installed_version or "—")
+        version = "built-in" if s.meta.builtin else (s.installed_version or "—")
         row = [
             s.meta.name,
             s.meta.category.value,
             f"[{mode_style}]{s.meta.mode.value}[/{mode_style}]",
-            "[ok]sí[/ok]" if s.installed else "[err]no[/err]",
+            "[ok]yes[/ok]" if s.installed else "[err]no[/err]",
             version,
         ]
         if online:
@@ -90,11 +113,11 @@ def print_tools_table(online: bool) -> list[ToolStatus]:
     missing = [s for s in statuses if not s.installed]
     if missing:
         console.print(
-            "\n[muted]Instálalas con 'mrrobot tools install <nombre>' "
-            "(o '--all' para todas), o manualmente:[/muted]"
+            "\n[muted]Install them with 'mrrobot tools install <name>' "
+            "('--all' for all of them), or manually:[/muted]"
         )
         for s in missing:
-            hint = s.meta.install_hint or "ver repo upstream"
+            hint = s.meta.install_hint or "see the upstream repo"
             console.print(f"  • {s.meta.name}: [muted]{hint}[/muted]")
     return missing
 
@@ -102,14 +125,14 @@ def print_tools_table(online: bool) -> list[ToolStatus]:
 def print_history(limit: int) -> None:
     rows = storage.recent_runs(limit)
     if not rows:
-        console.print("[muted]Sin ejecuciones registradas todavía.[/muted]")
+        console.print("[muted]No runs recorded yet.[/muted]")
         return
-    table = Table(title="Historial", title_style="brand")
+    table = Table(title="History", title_style="brand")
     table.add_column("#")
-    table.add_column("Herramienta")
-    table.add_column("Objetivo")
-    table.add_column("Modo")
-    table.add_column("Salida")
+    table.add_column("Tool")
+    table.add_column("Target")
+    table.add_column("Mode")
+    table.add_column("Exit")
     table.add_column("Dur. (s)")
     for r in rows:
         table.add_row(
@@ -117,7 +140,7 @@ def print_history(limit: int) -> None:
             str(r["returncode"]), str(r["duration_s"]),
         )
     console.print(table)
-    console.print(f"[muted]Base de datos: {storage.db_location()}[/muted]")
+    console.print(f"[muted]Database: {storage.db_location()}[/muted]")
 
 
 def execute_tool(
@@ -128,28 +151,30 @@ def execute_tool(
     timeout: int = 300,
     **options: object,
 ) -> None:
-    """Ejecuta una herramienta y muestra el resultado. Usado por 'run' y el menú."""
+    """Run a tool and show the result. Used by both 'run' and the menu."""
     mode = adapter.meta.mode
-    label = "[active]ACTIVO[/active]" if mode is Mode.ACTIVE else "[passive]PASIVO[/passive]"
+    label = "[active]ACTIVE[/active]" if mode is Mode.ACTIVE else "[passive]PASSIVE[/passive]"
     console.print(f"▶ {adapter.meta.name} ({label}) → [bold]{target}[/bold]")
 
     try:
-        with console.status("Ejecutando…", spinner="dots"):
-            result = adapter.run(target, scope=scope, timeout=timeout, **options)
+        result = run_with_progress(
+            f"Running {adapter.meta.name}…",
+            lambda: adapter.run(target, scope=scope, timeout=timeout, **options),
+        )
     except NotAuthorized as exc:
-        err_console.print(f"[err]Bloqueado:[/err] {exc}")
+        err_console.print(f"[err]Blocked:[/err] {exc}")
         return
     except ToolNotInstalled as exc:
-        err_console.print(f"[err]No instalada:[/err] {exc}")
+        err_console.print(f"[err]Not installed:[/err] {exc}")
         if adapter.meta.install_hint:
-            err_console.print(f"[muted]Instala con: {adapter.meta.install_hint}[/muted]")
+            err_console.print(f"[muted]Install with: {adapter.meta.install_hint}[/muted]")
         return
 
     storage.save_run(result)
     if result.ok:
-        console.print(f"[ok]✓ Completado[/ok] en {result.duration_s}s")
+        console.print(f"[ok]✓ Done[/ok] in {result.duration_s}s")
     else:
-        console.print(f"[warn]⚠ Código de salida {result.returncode}[/warn] ({result.duration_s}s)")
+        console.print(f"[warn]⚠ Exit code {result.returncode}[/warn] ({result.duration_s}s)")
     if result.stdout.strip():
         console.print(result.stdout.rstrip())
     if result.stderr.strip():
@@ -157,72 +182,76 @@ def execute_tool(
 
 
 def install_one(name: str) -> bool:
-    """Instala una herramienta externa (con confirmación). True si quedó lista."""
+    """Install an external tool (with confirmation). True if it ends up ready."""
     adapter = registry.get(name)
     if adapter is None:
-        err_console.print(f"[err]Herramienta desconocida:[/err] {name}")
-        err_console.print("[muted]Usa 'mrrobot tools' para ver las disponibles.[/muted]")
+        err_console.print(f"[err]Unknown tool:[/err] {name}")
+        err_console.print("[muted]Run 'mrrobot tools' to see what's available.[/muted]")
         return False
 
     meta = adapter.meta
     if meta.builtin:
-        console.print(f"[ok]'{meta.name}' es integrada en mrrobot; no requiere instalación.[/ok]")
+        console.print(f"[ok]'{meta.name}' is built into mrrobot; no install needed.[/ok]")
         return True
     if which(meta.binary):
-        console.print(f"[ok]✓ '{meta.name}' ya está instalada.[/ok]")
+        console.print(f"[ok]✓ '{meta.name}' is already installed.[/ok]")
         return True
 
     cmd = pick_install_cmd(meta)
     if cmd is None:
         err_console.print(
-            f"[err]No encuentro un gestor de paquetes disponible para instalar '{meta.name}'.[/err]"
+            f"[err]No available package manager to install '{meta.name}' automatically.[/err]"
         )
         if meta.install_hint:
-            console.print(f"[muted]Instálala manualmente con: {meta.install_hint}[/muted]")
+            console.print(f"[muted]Install it manually with: {meta.install_hint}[/muted]")
         return False
 
-    console.print(f"Se ejecutará: [bold]{' '.join(cmd)}[/bold]")
-    if not typer.confirm("¿Continuar?", default=True):
+    console.print(f"This will run: [bold]{' '.join(cmd)}[/bold]")
+    if not typer.confirm("Continue?", default=True):
         return False
 
     proc = subprocess.run(cmd)
     if proc.returncode == 0:
-        console.print(f"[ok]✓ '{meta.name}' instalada correctamente.[/ok]")
+        console.print(f"[ok]✓ '{meta.name}' installed successfully.[/ok]")
         return True
-    err_console.print(f"[err]La instalación falló (código {proc.returncode}).[/err]")
+    err_console.print(f"[err]Installation failed (exit code {proc.returncode}).[/err]")
     return False
 
 
 def install_all_missing() -> None:
-    """Instala de una vez todas las herramientas externas que falten."""
+    """Install every missing external tool in one go."""
     missing = [
         a for a in registry.all_adapters()
         if not a.meta.builtin and not which(a.meta.binary)
     ]
     if not missing:
-        console.print("[ok]✓ No falta ninguna herramienta externa por instalar.[/ok]")
+        console.print("[ok]✓ No external tool is missing.[/ok]")
         return
 
-    console.print(f"Faltan [bold]{len(missing)}[/bold] herramientas externas:\n")
+    console.print(f"[bold]{len(missing)}[/bold] external tools are missing:\n")
     plan: list[tuple[ToolAdapter, list[str] | None]] = []
     for adapter in missing:
         cmd = pick_install_cmd(adapter.meta)
-        shown = " ".join(cmd) if cmd else "(sin gestor disponible — instálala a mano)"
+        shown = " ".join(cmd) if cmd else "(no package manager available — install it by hand)"
         console.print(f"  • {adapter.meta.name}: [muted]{shown}[/muted]")
         plan.append((adapter, cmd))
 
-    if not typer.confirm("\n¿Instalar todas las que se puedan automáticamente?", default=True):
-        console.print("[muted]Cancelado.[/muted]")
+    if not typer.confirm(
+        "\nInstall all the ones that can be installed automatically?", default=True
+    ):
+        console.print("[muted]Cancelled.[/muted]")
         return
 
     for adapter, cmd in plan:
         console.print(f"\n▶ {adapter.meta.name}…")
         if cmd is None:
-            hint = adapter.meta.install_hint or "ver repo upstream"
-            err_console.print(f"[warn]⚠ Sin gestor disponible. Manualmente: {hint}[/warn]")
+            hint = adapter.meta.install_hint or "see the upstream repo"
+            err_console.print(f"[warn]⚠ No package manager available. Manually: {hint}[/warn]")
             continue
         proc = subprocess.run(cmd)
         if proc.returncode == 0:
-            console.print(f"[ok]✓ {adapter.meta.name} instalada.[/ok]")
+            console.print(f"[ok]✓ {adapter.meta.name} installed.[/ok]")
         else:
-            err_console.print(f"[err]✗ {adapter.meta.name} falló (código {proc.returncode}).[/err]")
+            err_console.print(
+                f"[err]✗ {adapter.meta.name} failed (exit code {proc.returncode}).[/err]"
+            )

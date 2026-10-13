@@ -1,7 +1,7 @@
-"""Adaptador de subfinder: descubrimiento PASIVO de subdominios.
+"""subfinder adapter: PASSIVE subdomain discovery.
 
-Usa fuentes públicas (transparencia de certificados, DNS pasivo, etc.) sin
-enviar tráfico al objetivo. Upstream: https://github.com/projectdiscovery/subfinder (MIT).
+Uses public sources (certificate transparency, passive DNS, etc.) without
+sending traffic to the target. Upstream: https://github.com/projectdiscovery/subfinder (MIT).
 """
 
 from __future__ import annotations
@@ -16,7 +16,7 @@ class Subfinder(ToolAdapter):
         category=Category.WEB,
         mode=Mode.PASSIVE,
         target_kind=TargetKind.DOMAIN,
-        summary="Enumera subdominios de un dominio a partir de fuentes públicas.",
+        summary="Enumerates a domain's subdomains from public sources.",
         binary="subfinder",
         repo="projectdiscovery/subfinder",
         version_cmd=["subfinder", "-version"],

@@ -1,9 +1,9 @@
-"""WHOIS: registrante, fechas de registro/expiración y servidores DNS.
+"""WHOIS: registrant, registration/expiry dates and DNS servers.
 
-Integrado, sin binario externo: habla el protocolo WHOIS (RFC 3912) por
-socket directamente contra el registro autoritativo del TLD, siguiendo la
-referencia que da IANA. PASIVO: consulta un servicio de registro público,
-no el objetivo.
+Built in, no external binary: speaks the WHOIS protocol (RFC 3912) over a
+raw socket directly against the TLD's authoritative registry, following
+the referral IANA gives. PASSIVE: queries a public registry service, not
+the target.
 """
 
 from __future__ import annotations
@@ -38,7 +38,7 @@ class Whois(ToolAdapter):
         category=Category.OSINT,
         mode=Mode.PASSIVE,
         target_kind=TargetKind.DOMAIN,
-        summary="Registrante, fechas de registro/expiración y DNS autoritativo de un dominio.",
+        summary="Registrant, registration/expiry dates and authoritative DNS for a domain.",
         builtin=True,
     )
 
@@ -46,20 +46,20 @@ class Whois(ToolAdapter):
         start = time.time()
         domain = target.strip().lower()
         try:
-            # 1) Preguntamos a IANA qué registro lleva ese TLD.
+            # 1) Ask IANA which registry handles this TLD.
             referral = _query(_IANA_WHOIS, domain, timeout=min(timeout, 10))
             match = _WHOIS_SERVER_RE.search(referral) or _REFER_RE.search(referral)
             server = match.group(1) if match else _IANA_WHOIS
-            # 2) Preguntamos directamente al registro autoritativo.
+            # 2) Ask the authoritative registry directly.
             raw = _query(server, domain, timeout=min(timeout, 10))
         except OSError as exc:
             return make_result(
                 self.meta, target, returncode=1, stdout="",
-                stderr=f"No se pudo completar la consulta WHOIS: {exc}",
+                stderr=f"Couldn't complete the WHOIS query: {exc}",
                 started_at=start, command=[f"whois {domain}"],
             )
 
-        # Nos quedamos con las líneas con contenido real, fuera de ruido legal.
+        # Keep only lines with real content, filtering out legal boilerplate.
         useful = [
             ln.rstrip() for ln in raw.splitlines()
             if ln.strip() and not ln.strip().startswith(("%", "#", ">>>"))

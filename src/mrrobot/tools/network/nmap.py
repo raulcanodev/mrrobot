@@ -1,7 +1,7 @@
-"""Adaptador de Nmap: escaneo ACTIVO de puertos y servicios.
+"""Nmap adapter: ACTIVE port and service scanning.
 
-ATENCIÓN: Nmap envía paquetes al objetivo. Es una acción ACTIVA y por tanto
-solo se ejecuta contra objetivos dentro del alcance autorizado (ver scope).
+WARNING: Nmap sends packets to the target. It's an ACTIVE action and only
+runs against targets within the authorized scope (see scope).
 Upstream: https://github.com/nmap/nmap (NPSL).
 """
 
@@ -17,7 +17,7 @@ class Nmap(ToolAdapter):
         category=Category.NETWORK,
         mode=Mode.ACTIVE,
         target_kind=TargetKind.HOST,
-        summary="Descubre puertos y servicios abiertos en un host autorizado.",
+        summary="Discovers open ports and services on an authorized host.",
         binary="nmap",
         repo="nmap/nmap",
         version_cmd=["nmap", "--version"],
@@ -27,8 +27,8 @@ class Nmap(ToolAdapter):
     )
 
     def build_args(self, target: str, **options: object) -> list[str]:
-        # Escaneo por defecto comedido: top 1000 puertos + detección de versión.
-        # Mantenemos el ritmo moderado (-T3) para no saturar al objetivo.
+        # Modest default scan: top 1000 ports + version detection.
+        # Keep a moderate pace (-T3) so we don't flood the target.
         extra = options.get("ports")
         args = ["-sV", "-T3"]
         if isinstance(extra, str) and extra:

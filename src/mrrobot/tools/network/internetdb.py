@@ -1,9 +1,9 @@
-"""Shodan InternetDB: puertos, servicios, CPEs y CVEs conocidos de una IP.
+"""Shodan InternetDB: known ports, services, CPEs and CVEs for an IP.
 
-Integrado, sin clave de API. PASIVO: consulta la base de datos pública de
-Shodan sobre esa IP (snapshot de escaneos previos de Shodan), sin enviar
-ningún paquete al objetivo. Es la forma más rápida de tener una foto de
-exposición de un host sin escanearlo tú mismo.
+Built in, no API key. PASSIVE: queries Shodan's public database about that
+IP (a snapshot of Shodan's previous scans), without sending any packet to
+the target. The fastest way to get a snapshot of a host's exposure
+without scanning it yourself.
 """
 
 from __future__ import annotations
@@ -22,7 +22,7 @@ class InternetDB(ToolAdapter):
         category=Category.NETWORK,
         mode=Mode.PASSIVE,
         target_kind=TargetKind.IP,
-        summary="Puertos, servicios y CVEs conocidos de una IP según Shodan (sin API key).",
+        summary="Known ports, services and CVEs for an IP, per Shodan (no API key).",
         builtin=True,
     )
 
@@ -34,14 +34,14 @@ class InternetDB(ToolAdapter):
         except httpx.HTTPError as exc:
             return make_result(
                 self.meta, target, returncode=1, stdout="",
-                stderr=f"No se pudo consultar InternetDB: {exc}", started_at=start,
+                stderr=f"Couldn't query InternetDB: {exc}", started_at=start,
                 command=[url],
             )
 
         if resp.status_code == 404:
             return make_result(
                 self.meta, target, returncode=0,
-                stdout="Shodan no tiene datos registrados para esta IP.",
+                stdout="Shodan has no data on record for this IP.",
                 stderr="", started_at=start, command=[url],
             )
         try:
@@ -50,14 +50,14 @@ class InternetDB(ToolAdapter):
         except (httpx.HTTPError, ValueError) as exc:
             return make_result(
                 self.meta, target, returncode=1, stdout="",
-                stderr=f"Respuesta inesperada de InternetDB: {exc}", started_at=start,
+                stderr=f"Unexpected response from InternetDB: {exc}", started_at=start,
                 command=[url],
             )
 
         lines = [
             f"IP:        {data.get('ip', target)}",
             f"Hostnames: {', '.join(data.get('hostnames', [])) or '—'}",
-            f"Puertos:   {', '.join(str(p) for p in data.get('ports', [])) or '—'}",
+            f"Ports:     {', '.join(str(p) for p in data.get('ports', [])) or '—'}",
             f"CPEs:      {', '.join(data.get('cpes', [])) or '—'}",
         ]
         vulns = data.get("vulns", [])

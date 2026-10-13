@@ -1,9 +1,9 @@
-"""Configuración y control de alcance (scope) / autorización.
+"""Configuration and scope / authorization control.
 
-Esta es la pieza que distingue un launcher responsable de un simple wrapper:
-antes de ejecutar nada ACTIVO contra un objetivo, mrrobot exige que ese
-objetivo esté dentro de un alcance autorizado. El reconocimiento PASIVO
-(fuentes públicas) se permite por defecto, pero también queda registrado.
+This is the piece that sets a responsible launcher apart from a plain
+wrapper: before running anything ACTIVE against a target, mrrobot requires
+that target to be inside an authorized scope. PASSIVE recon (public
+sources) is allowed by default, but it is still logged.
 """
 
 from __future__ import annotations
@@ -24,17 +24,17 @@ SCOPE_FILE = CONFIG_DIR / "scope.toml"
 
 @dataclass
 class Scope:
-    """Objetivos que el usuario declara estar autorizado a analizar activamente."""
+    """Targets the user declares they're authorized to actively test."""
 
-    # Dominios/host exactos o con comodín de subdominio: "*.midominio.com".
+    # Exact domains/hosts or a subdomain wildcard: "*.mydomain.com".
     domains: list[str] = field(default_factory=list)
-    # Redes/IPs en notación CIDR o IP suelta.
+    # Networks/IPs in CIDR notation or a bare IP.
     networks: list[str] = field(default_factory=list)
-    # Si el usuario firma la nota de autorización. Las acciones ACTIVAS la exigen.
+    # Whether the user signed off on the authorization note. ACTIVE actions require it.
     authorized: bool = False
 
     def allows(self, target: str) -> bool:
-        """¿El objetivo entra dentro del alcance autorizado?"""
+        """Is this target within the authorized scope?"""
         if not self.authorized:
             return False
         return self._matches_domain(target) or self._matches_network(target)
@@ -69,7 +69,7 @@ def ensure_dirs() -> None:
 
 
 def load_scope() -> Scope:
-    """Carga el alcance desde ~/.config/mrrobot/scope.toml (si existe)."""
+    """Load the scope from ~/.config/mrrobot/scope.toml (if it exists)."""
     if not SCOPE_FILE.exists():
         return Scope()
     with SCOPE_FILE.open("rb") as fh:
@@ -83,20 +83,20 @@ def load_scope() -> Scope:
 
 
 SCOPE_TEMPLATE = """\
-# Alcance autorizado de mrrobot
-# -----------------------------
-# Rellena SOLO con objetivos sobre los que tengas permiso explícito para
-# realizar pruebas activas (equipos propios, laboratorios, programas de
-# bug bounty dentro de su alcance, o clientes con autorización por escrito).
+# mrrobot authorized scope
+# -------------------------
+# Fill this in ONLY with targets you have explicit permission to actively
+# test (your own systems, labs, bug bounty programs within their scope, or
+# clients with written authorization).
 #
-# Pon authorized = true para confirmar que tienes ese permiso. Sin ello,
-# mrrobot bloqueará cualquier acción ACTIVA contra estos objetivos.
+# Set authorized = true to confirm you have that permission. Without it,
+# mrrobot will block any ACTIVE action against these targets.
 
 [scope]
 authorized = false
 domains = [
-    # "midominio.com",
-    # "*.laboratorio.local",
+    # "mydomain.com",
+    # "*.lab.local",
 ]
 networks = [
     # "127.0.0.1/32",
@@ -106,7 +106,7 @@ networks = [
 
 
 def write_scope_template() -> Path:
-    """Crea una plantilla de scope si aún no existe y devuelve su ruta."""
+    """Create a scope template if one doesn't exist yet and return its path."""
     ensure_dirs()
     if not SCOPE_FILE.exists():
         SCOPE_FILE.write_text(SCOPE_TEMPLATE, encoding="utf-8")

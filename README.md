@@ -1,97 +1,97 @@
 # mrrobot
 
-Orquestador modular de **OSINT y pentesting autorizado** para terminal.
+A modular terminal orchestrator for **authorized OSINT & pentesting**.
 
-`mrrobot` no reimplementa herramientas de seguridad: las **orquesta**. Ejecuta
-herramientas open source reputadas (Sherlock, subfinder, Nmap…) a través de
-adaptadores, normaliza sus resultados, guarda un historial y te avisa cuando
-hay actualizaciones disponibles. Pensado para crecer: hoy es una CLI limpia;
-mañana, sin tocar el núcleo, puede tener una interfaz (TUI/web).
+`mrrobot` doesn't reimplement security tools: it **orchestrates** them. It
+runs reputable open-source tools (Sherlock, subfinder, Nmap…) through
+adapters, normalizes their results, keeps a history, and warns you when
+updates are available. Built to grow: today it's a clean CLI; tomorrow,
+without touching the core, it could have an interface (TUI/web).
 
-> ⚖️ **Uso responsable.** Está diseñado para reconocimiento pasivo sobre
-> fuentes públicas y para pruebas activas **solo** contra objetivos propios o
-> con autorización explícita (laboratorios, bug bounty en alcance, clientes con
-> permiso por escrito). Las acciones activas están bloqueadas salvo que el
-> objetivo esté en tu alcance declarado. Tú eres responsable del uso que hagas.
+> ⚖️ **Responsible use.** Designed for passive recon against public
+> sources, and for active testing **only** against your own targets or with
+> explicit authorization (labs, in-scope bug bounty programs, clients with
+> written permission). Active actions are blocked unless the target is in
+> your declared scope. You are responsible for how you use it.
 
-## Arquitectura
+## Architecture
 
 ```
 src/mrrobot/
-├── cli/                 # Capa fina de terminal (Typer + Rich + questionary)
-│   ├── app.py           #   comandos: run, report, tools, scope, history, doctor
-│   ├── menu.py          #   menú interactivo (selector con flechas)
-│   ├── actions.py       #   lógica compartida entre comandos y menú
-│   ├── report_wizard.py #   asistente interactivo de informes
-│   ├── style.py         #   estilo visual compartido del selector
+├── cli/                 # Thin terminal layer (Typer + Rich + questionary)
+│   ├── app.py           #   commands: run, report, tools, scope, history, doctor
+│   ├── menu.py          #   interactive menu (arrow-key selector)
+│   ├── actions.py       #   logic shared between commands and the menu
+│   ├── report_wizard.py #   interactive report wizard
+│   ├── style.py         #   shared visual style for the selector
 │   └── banner.py
-├── core/                # Núcleo reutilizable (independiente de la UI)
+├── core/                # Reusable core (independent of the UI)
 │   ├── models.py        #   ToolMeta, RunResult, Scope, Mode, TargetKind…
-│   ├── config.py        #   scope / autorización
-│   ├── registry.py      #   registro central de herramientas
-│   ├── runner.py        #   ejecución de procesos externos
-│   ├── installer.py     #   instalación automática (brew/pipx)
-│   ├── updates.py       #   versión instalada vs. última release
-│   ├── report.py        #   agregación de resultados en un informe
-│   └── storage.py       #   historial en SQLite
-└── tools/               # Un adaptador por herramienta
+│   ├── config.py        #   scope / authorization
+│   ├── registry.py      #   central tool registry
+│   ├── runner.py        #   external process execution
+│   ├── installer.py     #   automatic install (brew/pipx)
+│   ├── updates.py       #   installed version vs. latest release
+│   ├── report.py        #   aggregating results into a report
+│   └── storage.py       #   SQLite history
+└── tools/               # One adapter per tool
     ├── osint/            # sherlock, theharvester, whois
     ├── web/               # subfinder, amass, crtsh, wayback
     └── network/           # nmap, internetdb, certinfo
 ```
 
-**Modos de ejecución**
+**Execution modes**
 
-| Modo | Qué hace | Autorización |
+| Mode | What it does | Authorization |
 |------|----------|--------------|
-| `passive` | Consulta fuentes públicas, no toca el objetivo | Permitido por defecto |
-| `active`  | Envía tráfico al objetivo | Requiere scope autorizado |
+| `passive` | Queries public sources, never touches the target | Allowed by default |
+| `active`  | Sends traffic to the target | Requires authorized scope |
 
-**Herramientas integradas** (10 ahora mismo, sin contar lo que tú añadas):
+**Built-in tools** (10 right now, not counting what you add):
 
-| Herramienta | Categoría | Modo | Instalación |
+| Tool | Category | Mode | Install |
 |---|---|---|---|
-| `sherlock` | osint | passive | externa (brew/pipx) — usuario en redes sociales |
-| `theharvester` | osint | passive | externa (brew) — emails/hosts vía fuentes OSINT |
-| `whois` | osint | passive | **integrada** — registrante, fechas, DNS autoritativo |
-| `subfinder` | web | passive | externa (brew) — subdominios |
-| `amass` | web | passive | externa (brew), siempre en `-passive` |
-| `crtsh` | web | passive | **integrada** — subdominios vía Certificate Transparency |
-| `wayback` | web | passive | **integrada** — URLs históricas (Internet Archive) |
-| `nmap` | network | active | externa (brew) — puertos y servicios |
-| `internetdb` | network | passive | **integrada** — snapshot de Shodan (sin API key) |
-| `certinfo` | network | active | **integrada** — certificado TLS, SANs, cifrado |
+| `sherlock` | osint | passive | external (brew/pipx) — username on social networks |
+| `theharvester` | osint | passive | external (brew) — emails/hosts via OSINT sources |
+| `whois` | osint | passive | **built-in** — registrant, dates, authoritative DNS |
+| `subfinder` | web | passive | external (brew) — subdomains |
+| `amass` | web | passive | external (brew), always in `-passive` |
+| `crtsh` | web | passive | **built-in** — subdomains via Certificate Transparency |
+| `wayback` | web | passive | **built-in** — historical URLs (Internet Archive) |
+| `nmap` | network | active | external (brew) — ports and services |
+| `internetdb` | network | passive | **built-in** — Shodan snapshot (no API key) |
+| `certinfo` | network | active | **built-in** — TLS certificate, SANs, cipher |
 
-Las "integradas" no requieren instalar nada: están escritas en Python dentro
-de mrrobot y funcionan desde el primer `mrrobot doctor`.
+"Built-in" tools need nothing installed: they're written in Python inside
+mrrobot and work from the very first `mrrobot doctor`.
 
-## Instalación
+## Install
 
-Copia y pega esto en tu terminal:
+Copy and paste this into your terminal:
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/raulcanodev/mrrobot/main/install.sh | bash
 ```
 
-Instala `mrrobot` en su propio entorno virtual bajo `~/.local/share/mrrobot`
-y enlaza el comando en `~/.local/bin/mrrobot`, sin tocar tu Python de sistema.
-Requiere Python 3.11+ (p. ej. `brew install python`).
+Installs `mrrobot` in its own virtual environment under
+`~/.local/share/mrrobot` and links the command into `~/.local/bin/mrrobot`,
+without touching your system Python. Requires Python 3.11+ (e.g.
+`brew install python`).
 
-Luego ejecuta:
+Then run:
 
 ```bash
 mrrobot doctor
 ```
 
-Para actualizar, vuelve a ejecutar el mismo comando de instalación. Para
-desinstalar:
+To update, run the same install command again. To uninstall:
 
 ```bash
 rm ~/.local/bin/mrrobot
 rm -rf ~/.local/share/mrrobot
 ```
 
-### Instalación para desarrollo
+### Development install
 
 ```bash
 git clone https://github.com/raulcanodev/mrrobot.git
@@ -100,78 +100,82 @@ python3 -m venv .venv && source .venv/bin/activate
 pip install -e ".[dev]"
 ```
 
-Las herramientas externas se instalan aparte, con un solo comando cada una:
+External tools install separately, one command each:
 
 ```bash
-mrrobot tools install sherlock     # te muestra el comando (brew/pipx) y pide confirmación
+mrrobot tools install sherlock     # shows you the command (brew/pipx) and asks to confirm
 ```
 
-## Uso
+## Usage
 
-### Menú interactivo
+### Interactive menu
 
 ```bash
 mrrobot
 ```
 
-Ejecutado sin nada más, abre un **menú con selector de flechas** (↑/↓ + Enter,
-sin escribir comandos): ejecutar una herramienta, generar un informe, ver el
-estado de las herramientas, instalar las que falten, gestionar el scope o ver
-el historial. `mrrobot menu` hace lo mismo de forma explícita.
+Run with nothing else, it opens an **arrow-key selector menu** (↑/↓ + Enter,
+no typing commands): run a tool, generate a report, check tool status,
+install the missing ones, manage scope, or view history. `mrrobot menu`
+does the same thing explicitly.
 
-Esto **no sustituye** la vía por comando: todo lo del menú tiene su comando
-directo, para scripts, automatización o si ya sabes lo que quieres ejecutar.
+This **doesn't replace** the command-line path: everything in the menu
+also has its own direct command, for scripts, automation, or whenever you
+already know what you want to run.
 
-### Comandos directos
+### Direct commands
 
 ```bash
-mrrobot doctor                     # chequeo + avisos de actualización
-mrrobot tools --online             # herramientas integradas y versiones
-mrrobot tools install <nombre>     # instala una herramienta externa
-mrrobot tools install --all        # instala de una vez todas las que falten
-mrrobot scope init                 # crea tu plantilla de alcance
-mrrobot run sherlock raulcanodev   # OSINT pasivo, una sola herramienta
-mrrobot run subfinder ejemplo.com  # subdominios (pasivo)
-mrrobot run nmap 192.168.1.10      # red (activo → exige scope)
-mrrobot report                     # asistente interactivo: informe completo
-mrrobot history                    # ejecuciones anteriores
+mrrobot doctor                     # startup check + update notices
+mrrobot tools --online             # built-in tools and their versions
+mrrobot tools install <name>       # install one external tool
+mrrobot tools install --all        # install every missing one in one go
+mrrobot scope init                 # create your scope template
+mrrobot run sherlock raulcanodev   # passive OSINT, a single tool
+mrrobot run subfinder example.com  # subdomains (passive)
+mrrobot run nmap 192.168.1.10      # network (active → requires scope)
+mrrobot report                     # interactive wizard: full report
+mrrobot history                    # previous runs
 ```
 
-### Informes completos (`mrrobot report`)
+### Full reports (`mrrobot report`)
 
 ```
-mrrobot report ejemplo.com
+mrrobot report example.com
 ```
 
-Te pregunta si quieres generar el informe, confirma el tipo de objetivo
-(dominio/usuario/IP), y te deja elegir con casillas (espacio para marcar,
-Enter para continuar) qué herramientas aplicables ejecutar. Al terminar:
+Asks whether to generate the report, confirms the kind of target
+(domain/username/IP), and lets you pick which applicable tools to run with
+checkboxes (space to toggle, Enter to continue). As it runs, each tool
+shows a live spinner with its position in the batch and an elapsed-time
+counter (`[3/8] Running theharvester (passive)… 0:00:42`), so you always
+know what's running and for how long. When it's done:
 
-- imprime un resumen en consola (cada herramienta en su panel, con las
-  primeras líneas de salida);
-- te pregunta si quieres guardar el **informe completo** en un `.txt` bajo
+- it prints a console summary (each tool in its own panel, with the first
+  lines of output);
+- it asks whether to save the **full report** to a `.txt` file under
   `~/.local/share/mrrobot/reports/`;
-- registra cada ejecución en el historial (`mrrobot history`).
+- it records every run in the history (`mrrobot history`).
 
-Las herramientas ACTIVAS fuera de tu scope autorizado no se bloquean con un
-error: simplemente quedan marcadas como "bloqueada" dentro del informe.
+ACTIVE tools outside your authorized scope aren't blocked with an error:
+they're simply marked as "blocked" inside the report.
 
-## Añadir una herramienta
+## Adding a tool
 
-**Externa** (lanza un binario):
-1. Crea `tools/<categoria>/<nombre>.py` heredando de `ToolAdapter`.
-2. Declara su `ToolMeta` (binario, repo, modo, `target_kind`, `install_cmds`).
-3. Sobrescribe `build_args()`.
+**External** (launches a binary):
+1. Create `tools/<category>/<name>.py` subclassing `ToolAdapter`.
+2. Declare its `ToolMeta` (binary, repo, mode, `target_kind`, `install_cmds`).
+3. Override `build_args()`.
 
-**Integrada** (sin binario, p. ej. una API pública):
-1. Mismo `ToolMeta`, con `builtin=True` y sin `binary`.
-2. Sobrescribe `execute()` directamente y construye el resultado con
-   `make_result()` (ver `tools/web/crtsh.py` como ejemplo corto).
+**Built-in** (no binary, e.g. a public API):
+1. Same `ToolMeta`, with `builtin=True` and no `binary`.
+2. Override `execute()` directly and build the result with `make_result()`
+   (see `tools/web/crtsh.py` for a short example).
 
-En ambos casos, regístrala en `core/registry.py`. El resto (autorización,
-historial, informes, avisos de update) ya es común.
+Either way, register it in `core/registry.py`. The rest (authorization,
+history, reports, update notices) is already shared.
 
-## Notas de licencias
+## License notes
 
-Cada herramienta mantiene su propia licencia. `mrrobot` las ejecuta como
-procesos externos (adaptadores); no copia ni redistribuye su código.
+Each tool keeps its own license. `mrrobot` runs them as external processes
+(adapters); it never copies or redistributes their code.

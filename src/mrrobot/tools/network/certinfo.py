@@ -1,11 +1,12 @@
-"""certinfo: inspecciona el certificado TLS que presenta un host.
+"""certinfo: inspects the TLS certificate a host presents.
 
-Integrado, sin binario externo (usa el módulo `ssl` de la librería estándar).
-Muestra emisor, validez, nombres alternativos (SANs) —útiles para descubrir
-subdominios hermanos en el mismo certificado— y el cifrado negociado.
+Built in, no external binary (uses the standard library's `ssl` module).
+Shows issuer, validity, subject alternative names (SANs — useful for
+discovering sibling subdomains on the same certificate) and the
+negotiated cipher.
 
-ACTIVO: abre una conexión TCP/TLS real contra el objetivo (equivalente a
-visitar el sitio con un navegador), así que requiere scope autorizado.
+ACTIVE: opens a real TCP/TLS connection to the target (equivalent to
+visiting the site with a browser), so it requires an authorized scope.
 """
 
 from __future__ import annotations
@@ -19,8 +20,8 @@ from ..base import ToolAdapter, make_result
 
 
 def _split_host_port(target: str) -> tuple[str, int]:
-    # "host:port" tiene exactamente un ':'; una IPv6 pelada tendría varios
-    # y la dejamos tal cual con el puerto 443 por defecto.
+    # "host:port" has exactly one ':'; a bare IPv6 address would have
+    # several, and we leave it as-is with the default port 443.
     if target.count(":") == 1:
         host, _, port = target.partition(":")
         return host, int(port)
@@ -33,7 +34,7 @@ class CertInfo(ToolAdapter):
         category=Category.NETWORK,
         mode=Mode.ACTIVE,
         target_kind=TargetKind.HOST,
-        summary="Emisor, validez, SANs y cifrado del certificado TLS de un host.",
+        summary="Issuer, validity, SANs and cipher of a host's TLS certificate.",
         builtin=True,
     )
 
@@ -57,7 +58,7 @@ class CertInfo(ToolAdapter):
                 cipher = tls.cipher()
                 tls_version = tls.version()
         except ssl.SSLCertVerificationError as exc:
-            warnings.append(f"cadena de confianza no verificada: {exc.verify_message}")
+            warnings.append(f"trust chain not verified: {exc.verify_message}")
             try:
                 ctx = ssl._create_unverified_context()
                 with (
@@ -67,11 +68,11 @@ class CertInfo(ToolAdapter):
                     cipher = tls.cipher()
                     tls_version = tls.version()
             except OSError as exc2:
-                warnings.append(f"tampoco se pudo negociar TLS sin verificar: {exc2}")
+                warnings.append(f"couldn't negotiate TLS unverified either: {exc2}")
         except (OSError, TimeoutError) as exc:
             return make_result(
                 self.meta, target, returncode=1, stdout="",
-                stderr=f"No se pudo conectar a {host}:{port}: {exc}",
+                stderr=f"Couldn't connect to {host}:{port}: {exc}",
                 started_at=start, command=[f"tls-handshake {host}:{port}"],
             )
 
@@ -80,9 +81,9 @@ class CertInfo(ToolAdapter):
             issuer = dict(x[0] for x in cert.get("issuer", []))
             sans = [v for k, v in cert.get("subjectAltName", []) if k == "DNS"]
             lines += [
-                f"Sujeto:    {subject.get('commonName', '—')}",
-                f"Emisor:    {issuer.get('commonName', '—')}",
-                f"Válido:    {cert.get('notBefore', '—')} → {cert.get('notAfter', '—')}",
+                f"Subject:   {subject.get('commonName', '—')}",
+                f"Issuer:    {issuer.get('commonName', '—')}",
+                f"Valid:     {cert.get('notBefore', '—')} → {cert.get('notAfter', '—')}",
                 f"SANs:      {', '.join(sans) if sans else '—'}",
             ]
         if tls_version or cipher:
@@ -91,7 +92,7 @@ class CertInfo(ToolAdapter):
         for w in warnings:
             lines.append(f"⚠ {w}")
 
-        stdout = "\n".join(lines) if lines else "(sin datos de certificado)"
+        stdout = "\n".join(lines) if lines else "(no certificate data)"
         return make_result(
             self.meta, target, returncode=0, stdout=stdout, stderr="",
             started_at=start, command=[f"tls-handshake {host}:{port}"],

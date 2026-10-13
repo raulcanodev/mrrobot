@@ -1,9 +1,10 @@
-"""Adaptador de OWASP Amass en modo pasivo: mapeo de superficie de ataque.
+"""OWASP Amass adapter in passive mode: attack-surface mapping.
 
-Motor de reconocimiento mucho más agresivo en fuentes que subfinder (cruza
-DNS pasivo, certificados, scraping de buscadores y más proveedores). Lo
-limitamos siempre a `-passive`: sin esa bandera, Amass hace resolución DNS
-activa contra el objetivo, y eso lo convertiría en una acción ACTIVA.
+A much more aggressive recon engine, source-wise, than subfinder (crosses
+passive DNS, certificates, search-engine scraping and more providers). We
+always constrain it to `-passive`: without that flag, Amass does active
+DNS resolution against the target, which would turn it into an ACTIVE
+action.
 Upstream: https://github.com/owasp-amass/amass (Apache-2.0).
 """
 
@@ -19,7 +20,7 @@ class Amass(ToolAdapter):
         category=Category.WEB,
         mode=Mode.PASSIVE,
         target_kind=TargetKind.DOMAIN,
-        summary="Mapeo de superficie de ataque: subdominios y activos vía fuentes pasivas.",
+        summary="Attack-surface mapping: subdomains and assets via passive sources.",
         binary="amass",
         repo="owasp-amass/amass",
         version_cmd=["amass", "version"],
@@ -29,6 +30,6 @@ class Amass(ToolAdapter):
     )
 
     def build_args(self, target: str, **options: object) -> list[str]:
-        # -passive es obligatorio aquí: sin él, Amass resuelve DNS contra
-        # el objetivo y deja de ser una técnica pasiva.
+        # -passive is mandatory here: without it, Amass resolves DNS
+        # against the target and stops being a passive technique.
         return ["enum", "-passive", "-d", target]

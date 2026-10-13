@@ -1,9 +1,9 @@
-"""Resuelve cómo instalar automáticamente una herramienta externa.
+"""Works out how to automatically install an external tool.
 
-Cada ToolMeta declara varios comandos candidatos en orden de preferencia
-(p. ej. brew antes que pip). Aquí solo elegimos el primero cuyo gestor de
-paquetes ya esté disponible; la propia CLI es quien pide confirmación y
-ejecuta el comando con la salida visible para el usuario.
+Each ToolMeta declares several candidate commands in order of preference
+(e.g. brew before pip). Here we just pick the first one whose package
+manager is already available; the CLI itself asks for confirmation and
+runs the command with output visible to the user.
 """
 
 from __future__ import annotations
@@ -13,7 +13,7 @@ from .runner import which
 
 
 def pick_install_cmd(meta: ToolMeta) -> list[str] | None:
-    """Primer comando de instalación cuyo gestor de paquetes está en el PATH."""
+    """First install command whose package manager is on the PATH."""
     for cmd in meta.install_cmds:
         if cmd and which(cmd[0]):
             return cmd

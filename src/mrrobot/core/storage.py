@@ -1,7 +1,7 @@
-"""Almacenamiento de resultados en SQLite.
+"""Run storage in SQLite.
 
-Guardar cada ejecución permite tener historial, búsquedas y, más adelante,
-relacionar hallazgos. Usamos solo la librería estándar para no añadir peso.
+Saving every run gives us history, search, and later on, the ability to
+relate findings. We only use the standard library to keep this light.
 """
 
 from __future__ import annotations
