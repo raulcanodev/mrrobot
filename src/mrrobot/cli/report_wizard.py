@@ -1,17 +1,17 @@
 """Asistente interactivo para generar un informe completo.
 
 Pregunta si se quiere generar el informe, sobre qué objetivo, qué tipo de
-objetivo es y qué herramientas aplicables incluir; las ejecuta, imprime un
-resumen en consola y ofrece guardar el detalle completo en un .txt.
+objetivo es y qué herramientas aplicables incluir (con un selector de
+casillas, flechas + espacio); las ejecuta, imprime un resumen en consola y
+ofrece guardar el detalle completo en un .txt.
 """
 
 from __future__ import annotations
 
 import ipaddress
 
+import questionary
 from rich.panel import Panel
-from rich.prompt import Confirm, Prompt
-from rich.table import Table
 
 from ..core import registry, storage
 from ..core.config import load_scope
@@ -19,12 +19,13 @@ from ..core.console import console, err_console
 from ..core.models import Mode, TargetKind
 from ..core.report import Report, Section, save_report
 from ..core.runner import NotAuthorized, ToolNotInstalled, which
+from .style import QUESTIONARY_STYLE as _STYLE
 
 _PREVIEW_LINES = 20
 
 _KIND_WANTS: dict[str, set[TargetKind]] = {
-    "usuario": {TargetKind.USERNAME},
     "dominio": {TargetKind.DOMAIN, TargetKind.HOST},
+    "usuario": {TargetKind.USERNAME},
     "ip": {TargetKind.IP, TargetKind.HOST},
 }
 
@@ -39,22 +40,31 @@ def _guess_kind(target: str) -> str:
 
 
 def run_wizard(target: str | None) -> None:
-    if not Confirm.ask("¿Quieres generar un informe completo ahora?", default=True):
+    if not questionary.confirm(
+        "¿Quieres generar un informe completo ahora?", default=True, style=_STYLE
+    ).ask():
         console.print("[muted]Cancelado.[/muted]")
         return
 
     if not target:
-        target = Prompt.ask("¿Sobre qué objetivo? (dominio, usuario o IP)").strip()
+        target = questionary.text(
+            "¿Sobre qué objetivo? (dominio, usuario o IP):", style=_STYLE
+        ).ask()
     target = (target or "").strip()
     if not target:
         err_console.print("[err]No se indicó ningún objetivo.[/err]")
         return
 
-    kind = Prompt.ask(
+    guess = _guess_kind(target)
+    kinds = ["dominio", "usuario", "ip"]
+    kind = questionary.select(
         "¿Qué es este objetivo?",
-        choices=["dominio", "usuario", "ip"],
-        default=_guess_kind(target),
-    )
+        choices=kinds,
+        default=guess,
+        style=_STYLE,
+    ).ask()
+    if kind is None:
+        return
 
     candidates = [a for a in registry.all_adapters() if a.meta.target_kind in _KIND_WANTS[kind]]
     if not candidates:
@@ -71,31 +81,23 @@ def run_wizard(target: str | None) -> None:
             console.print("[muted]Instálalas con 'mrrobot tools install <nombre>'.[/muted]")
         return
 
-    table = Table(title=f"Herramientas disponibles para '{target}' ({kind})")
-    table.add_column("#")
-    table.add_column("Nombre", style="bold")
-    table.add_column("Modo")
-    table.add_column("Resumen")
-    for i, adapter in enumerate(available, start=1):
-        mode_style = "active" if adapter.meta.mode is Mode.ACTIVE else "passive"
-        label = f"[{mode_style}]{adapter.meta.mode.value}[/{mode_style}]"
-        if adapter.meta.mode is Mode.ACTIVE and not scope.allows(target):
-            label += " [err](fuera de scope)[/err]"
-        table.add_row(str(i), adapter.meta.name, label, adapter.meta.summary)
-    console.print(table)
     if missing:
         names = ", ".join(a.meta.name for a in missing)
-        console.print(f"[muted]No instaladas (omitidas): {names}[/muted]")
+        console.print(f"[muted]No instaladas (omitidas de la lista): {names}[/muted]\n")
 
-    selection = Prompt.ask(
-        "¿Qué herramientas incluyo? (números separados por coma, o 'all')",
-        default="all",
-    )
-    if selection.strip().lower() == "all":
-        chosen = available
-    else:
-        idxs = {int(tok) for tok in selection.replace(" ", "").split(",") if tok.isdigit()}
-        chosen = [a for i, a in enumerate(available, start=1) if i in idxs]
+    def _choice_label(adapter) -> str:
+        is_active = adapter.meta.mode is Mode.ACTIVE
+        mode_txt = "ACTIVO" if is_active else "pasivo"
+        blocked = " — FUERA DE SCOPE" if is_active and not scope.allows(target) else ""
+        return f"{adapter.meta.name} ({mode_txt}{blocked}) — {adapter.meta.summary}"
+
+    chosen = questionary.checkbox(
+        "¿Qué herramientas incluyo? (espacio para marcar/desmarcar, Enter para continuar)",
+        choices=[
+            questionary.Choice(_choice_label(a), value=a, checked=True) for a in available
+        ],
+        style=_STYLE,
+    ).ask()
 
     if not chosen:
         err_console.print("[err]No se seleccionó ninguna herramienta.[/err]")
@@ -150,7 +152,9 @@ def run_wizard(target: str | None) -> None:
     console.print()
     _print_summary(report)
 
-    if Confirm.ask("¿Guardar este informe completo en un archivo .txt?", default=True):
+    if questionary.confirm(
+        "¿Guardar este informe completo en un archivo .txt?", default=True, style=_STYLE
+    ).ask():
         path = save_report(report)
         console.print(f"[ok]✓ Informe guardado en:[/ok] {path}")
     else:

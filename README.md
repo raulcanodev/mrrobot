@@ -18,9 +18,12 @@ mañana, sin tocar el núcleo, puede tener una interfaz (TUI/web).
 
 ```
 src/mrrobot/
-├── cli/                 # Capa fina de terminal (Typer + Rich)
+├── cli/                 # Capa fina de terminal (Typer + Rich + questionary)
 │   ├── app.py           #   comandos: run, report, tools, scope, history, doctor
+│   ├── menu.py          #   menú interactivo (selector con flechas)
+│   ├── actions.py       #   lógica compartida entre comandos y menú
 │   ├── report_wizard.py #   asistente interactivo de informes
+│   ├── style.py         #   estilo visual compartido del selector
 │   └── banner.py
 ├── core/                # Núcleo reutilizable (independiente de la UI)
 │   ├── models.py        #   ToolMeta, RunResult, Scope, Mode, TargetKind…
@@ -105,10 +108,27 @@ mrrobot tools install sherlock     # te muestra el comando (brew/pipx) y pide co
 
 ## Uso
 
+### Menú interactivo
+
+```bash
+mrrobot
+```
+
+Ejecutado sin nada más, abre un **menú con selector de flechas** (↑/↓ + Enter,
+sin escribir comandos): ejecutar una herramienta, generar un informe, ver el
+estado de las herramientas, instalar las que falten, gestionar el scope o ver
+el historial. `mrrobot menu` hace lo mismo de forma explícita.
+
+Esto **no sustituye** la vía por comando: todo lo del menú tiene su comando
+directo, para scripts, automatización o si ya sabes lo que quieres ejecutar.
+
+### Comandos directos
+
 ```bash
 mrrobot doctor                     # chequeo + avisos de actualización
 mrrobot tools --online             # herramientas integradas y versiones
-mrrobot tools install <nombre>     # instala una herramienta externa automáticamente
+mrrobot tools install <nombre>     # instala una herramienta externa
+mrrobot tools install --all        # instala de una vez todas las que falten
 mrrobot scope init                 # crea tu plantilla de alcance
 mrrobot run sherlock raulcanodev   # OSINT pasivo, una sola herramienta
 mrrobot run subfinder ejemplo.com  # subdominios (pasivo)
@@ -124,8 +144,8 @@ mrrobot report ejemplo.com
 ```
 
 Te pregunta si quieres generar el informe, confirma el tipo de objetivo
-(dominio/usuario/IP), te muestra qué herramientas aplican y cuáles ya tienes
-instaladas, te deja elegir cuáles ejecutar (o `all`), y al terminar:
+(dominio/usuario/IP), y te deja elegir con casillas (espacio para marcar,
+Enter para continuar) qué herramientas aplicables ejecutar. Al terminar:
 
 - imprime un resumen en consola (cada herramienta en su panel, con las
   primeras líneas de salida);

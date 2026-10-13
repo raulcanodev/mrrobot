@@ -2,80 +2,39 @@
 
 La CLI es una capa fina sobre el core: traduce comandos a llamadas del
 registro/runner y presenta los resultados con Rich. Toda la lógica reutilizable
-vive en mrrobot.core, de modo que mañana una TUI (Textual) pueda apoyarse en
-exactamente lo mismo.
+vive en mrrobot.core (y en actions.py para lo compartido con el menú), de modo
+que mañana una TUI (Textual) pueda apoyarse en exactamente lo mismo.
+
+Sin argumentos, 'mrrobot' abre el menú interactivo (selector con flechas).
+Cada acción del menú tiene también su comando directo — nunca es la única
+forma de hacer algo.
 """
 
 from __future__ import annotations
 
-import subprocess
-
-import httpx
 import typer
-from rich.table import Table
 
 from .. import __version__
-from ..core import registry, storage
+from ..core import registry
 from ..core.config import SCOPE_FILE, load_scope, write_scope_template
 from ..core.console import console, err_console
-from ..core.installer import pick_install_cmd
-from ..core.models import Mode
-from ..core.runner import NotAuthorized, ToolNotInstalled, which
-from ..core.updates import check_tool
+from . import actions
 from .banner import render_banner
 from .report_wizard import run_wizard
 
 app = typer.Typer(
     add_completion=False,
-    no_args_is_help=True,
+    no_args_is_help=False,
     help="mrrobot — orquestador modular de OSINT y pentesting autorizado.",
     rich_markup_mode="rich",
 )
 
 scope_app = typer.Typer(help="Gestiona tu alcance autorizado (scope).")
-tools_app = typer.Typer(help="Lista y comprueba el estado de las herramientas.")
+tools_app = typer.Typer(help="Lista, comprueba e instala las herramientas.")
 app.add_typer(scope_app, name="scope")
 app.add_typer(tools_app, name="tools")
 
 
-# --------------------------------------------------------------------------- #
-# Comprobación de herramientas / actualizaciones
-# --------------------------------------------------------------------------- #
-def _check_all(online: bool) -> list:
-    statuses = []
-    client = httpx.Client(timeout=6.0) if online else None
-    try:
-        for adapter in registry.all_adapters():
-            statuses.append(check_tool(adapter.meta, online=online, client=client))
-    finally:
-        if client is not None:
-            client.close()
-    return statuses
-
-
-def _print_startup_notices(online: bool) -> None:
-    """Al arrancar: avisa de herramientas ausentes o con actualización disponible."""
-    statuses = _check_all(online)
-    missing = [s for s in statuses if not s.installed]
-    updates = [s for s in statuses if s.update_available]
-
-    if missing:
-        names = ", ".join(s.meta.name for s in missing)
-        console.print(f"[warn]⚠ No instaladas:[/warn] {names} "
-                      f"[muted](usa 'mrrobot tools' para ver cómo instalarlas)[/muted]")
-    if updates:
-        for s in updates:
-            console.print(
-                f"[warn]↑ Actualización:[/warn] {s.meta.name} "
-                f"{s.installed_version} → [ok]{s.latest_version}[/ok]"
-            )
-    if not missing and not updates and online:
-        console.print("[ok]✓ Todas las herramientas integradas están al día.[/ok]")
-
-
-# --------------------------------------------------------------------------- #
-# Comandos
-# --------------------------------------------------------------------------- #
 @app.callback(invoke_without_command=True)
 def _root(
     ctx: typer.Context,
@@ -84,8 +43,20 @@ def _root(
     if version:
         console.print(f"mrrobot v{__version__}")
         raise typer.Exit()
-    # El banner lo dibuja cada comando que lo necesite (p.ej. 'doctor'),
-    # para no repetirlo ni ensuciar la salida de 'run'/'history'.
+    if ctx.invoked_subcommand is None:
+        # Sin argumentos: menú interactivo. Con cualquier subcomando, la vía
+        # manual de siempre (no se toca el comportamiento habitual).
+        from .menu import main_menu
+
+        main_menu()
+
+
+@app.command("menu")
+def menu_command() -> None:
+    """Abre el menú interactivo (lo mismo que ejecutar 'mrrobot' sin nada más)."""
+    from .menu import main_menu
+
+    main_menu()
 
 
 @tools_app.callback(invoke_without_command=True)
@@ -99,81 +70,25 @@ def tools_list(
     """Lista las herramientas integradas y su estado."""
     if ctx.invoked_subcommand is not None:
         return
-    statuses = sorted(_check_all(online), key=lambda s: (s.meta.category.value, s.meta.name))
-    table = Table(title="Herramientas integradas", title_style="brand", expand=True)
-    table.add_column("Herramienta", style="bold")
-    table.add_column("Categoría")
-    table.add_column("Modo")
-    table.add_column("Instalada")
-    table.add_column("Versión")
-    table.add_column("Última") if online else None
-
-    for s in statuses:
-        mode_style = "active" if s.meta.mode is Mode.ACTIVE else "passive"
-        version = "integrado" if s.meta.builtin else (s.installed_version or "—")
-        row = [
-            s.meta.name,
-            s.meta.category.value,
-            f"[{mode_style}]{s.meta.mode.value}[/{mode_style}]",
-            "[ok]sí[/ok]" if s.installed else "[err]no[/err]",
-            version,
-        ]
-        if online:
-            latest = "—" if s.meta.builtin else (s.latest_version or "—")
-            if s.update_available:
-                latest = f"[warn]{latest} ↑[/warn]"
-            row.append(latest)
-        table.add_row(*row)
-
-    console.print(table)
-    missing = [s for s in statuses if not s.installed]
-    if missing:
-        console.print(
-            "\n[muted]Instálalas con 'mrrobot tools install <nombre>', o manualmente:[/muted]"
-        )
-        for s in missing:
-            hint = s.meta.install_hint or "ver repo upstream"
-            console.print(f"  • {s.meta.name}: [muted]{hint}[/muted]")
+    actions.print_tools_table(online)
 
 
 @tools_app.command("install")
 def tools_install(
-    name: str = typer.Argument(..., help="Nombre de la herramienta a instalar."),
+    name: str = typer.Argument(None, help="Nombre de la herramienta. Omite si usas --all."),
+    all_missing: bool = typer.Option(
+        False, "--all", help="Instala de una vez todas las herramientas externas que falten."
+    ),
 ) -> None:
-    """Instala automáticamente una herramienta externa (pide confirmación)."""
-    adapter = registry.get(name)
-    if adapter is None:
-        err_console.print(f"[err]Herramienta desconocida:[/err] {name}")
-        err_console.print("[muted]Usa 'mrrobot tools' para ver las disponibles.[/muted]")
+    """Instala una herramienta externa, o todas las que falten con --all."""
+    if all_missing:
+        actions.install_all_missing()
+        return
+    if not name:
+        err_console.print("[err]Indica un nombre, o usa '--all' para instalarlas todas.[/err]")
         raise typer.Exit(code=2)
-
-    meta = adapter.meta
-    if meta.builtin:
-        console.print(f"[ok]'{meta.name}' es integrada en mrrobot; no requiere instalación.[/ok]")
-        return
-    if which(meta.binary):
-        console.print(f"[ok]✓ '{meta.name}' ya está instalada.[/ok]")
-        return
-
-    cmd = pick_install_cmd(meta)
-    if cmd is None:
-        err_console.print(
-            f"[err]No encuentro un gestor de paquetes disponible para instalar '{meta.name}'.[/err]"
-        )
-        if meta.install_hint:
-            console.print(f"[muted]Instálala manualmente con: {meta.install_hint}[/muted]")
-        raise typer.Exit(code=5)
-
-    console.print(f"Se ejecutará: [bold]{' '.join(cmd)}[/bold]")
-    if not typer.confirm("¿Continuar?", default=True):
-        raise typer.Exit(code=1)
-
-    proc = subprocess.run(cmd)
-    if proc.returncode == 0:
-        console.print(f"[ok]✓ '{meta.name}' instalada correctamente.[/ok]")
-    else:
-        err_console.print(f"[err]La instalación falló (código {proc.returncode}).[/err]")
-        raise typer.Exit(code=proc.returncode)
+    ok = actions.install_one(name)
+    raise typer.Exit(code=0 if ok else 1)
 
 
 @scope_app.command("init")
@@ -212,56 +127,13 @@ def run(
         raise typer.Exit(code=2)
 
     scope = load_scope()
-    mode = adapter.meta.mode
-    label = "[active]ACTIVO[/active]" if mode is Mode.ACTIVE else "[passive]PASIVO[/passive]"
-    console.print(f"▶ {adapter.meta.name} ({label}) → [bold]{target}[/bold]")
-
-    try:
-        with console.status("Ejecutando…", spinner="dots"):
-            result = adapter.run(
-                target, scope=scope, timeout=timeout,
-                ports=ports or None,
-            )
-    except NotAuthorized as exc:
-        err_console.print(f"[err]Bloqueado:[/err] {exc}")
-        raise typer.Exit(code=3) from None
-    except ToolNotInstalled as exc:
-        err_console.print(f"[err]No instalada:[/err] {exc}")
-        err_console.print(f"[muted]Instala con: {adapter.meta.install_hint}[/muted]")
-        raise typer.Exit(code=4) from None
-
-    storage.save_run(result)
-    if result.ok:
-        console.print(f"[ok]✓ Completado[/ok] en {result.duration_s}s")
-    else:
-        console.print(f"[warn]⚠ Código de salida {result.returncode}[/warn] ({result.duration_s}s)")
-    if result.stdout.strip():
-        console.print(result.stdout.rstrip())
-    if result.stderr.strip():
-        err_console.print(f"[muted]{result.stderr.rstrip()}[/muted]")
+    actions.execute_tool(adapter, target, scope=scope, timeout=timeout, ports=ports or None)
 
 
 @app.command()
 def history(limit: int = typer.Option(20, help="Número de ejecuciones a mostrar.")) -> None:
     """Muestra el historial de ejecuciones guardadas."""
-    rows = storage.recent_runs(limit)
-    if not rows:
-        console.print("[muted]Sin ejecuciones registradas todavía.[/muted]")
-        return
-    table = Table(title="Historial", title_style="brand")
-    table.add_column("#")
-    table.add_column("Herramienta")
-    table.add_column("Objetivo")
-    table.add_column("Modo")
-    table.add_column("Salida")
-    table.add_column("Dur. (s)")
-    for r in rows:
-        table.add_row(
-            str(r["id"]), r["tool"], r["target"], r["mode"],
-            str(r["returncode"]), str(r["duration_s"]),
-        )
-    console.print(table)
-    console.print(f"[muted]Base de datos: {storage.db_location()}[/muted]")
+    actions.print_history(limit)
 
 
 @app.command()
@@ -281,7 +153,7 @@ def doctor(
 ) -> None:
     """Chequeo de arranque: herramientas presentes y actualizaciones."""
     render_banner(__version__)
-    _print_startup_notices(online)
+    actions.print_startup_notices(online)
 
 
 def main() -> None:
